@@ -1,3 +1,3 @@
 # phylostuff
 
-R scripts for working with phylogenetic trees
+Scripts for working with phylogenetic trees
