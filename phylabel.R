@@ -365,8 +365,8 @@ spec <- matrix(c(
   'metacolumns' , 'l', 2, "character", "comma separated list of columns to use from metadata table",
   'tobycodes'   , 'b', 0, "logical"  , "use abbreviated taxonomy names (\"tobycodes\") instead of full taxonomy",
   'genepresence', 'g', 2, "character", "path to a gene presence file to parse and add to tip labels",
-  'threads'     , 't', 2, 'integer'  , "number of threads to run on",
-  'notstrict'   , 's', 0, 'logical'  , "don't strictly taxonomise the tree"
+  'threads'     , 't', 2, 'integer'  , "number of threads to run on (only used for taxonomisation)",
+  'strict'      , 's', 0, 'logical'  , "strictly taxonomise the tree"
 ), byrow = T, ncol = 5)
 
 # Read options and do help -----------------------------------------------
@@ -384,7 +384,7 @@ rm(spec)
 
 if ( is.null(opt$phylo)     )  { stop("Phylogeny is required")                }
 if ( is.null(opt$threads)   )  { opt$threads    <- 1                          }
-if ( is.null(opt$notstrict) )  { opt$notstrict  <- FALSE                      }
+if ( is.null(opt$strict)    )  { opt$strict  <- FALSE                      }
 if ( is.null(opt$taxonomise) ) { opt$taxonomise <- FALSE       }
 if ( is.null(opt$rename) ) { opt$rename <- FALSE   }
 if ( is.null(opt$tobycodes) ) { opt$tobycodes <- FALSE }
@@ -559,9 +559,9 @@ if ( opt$taxonomise ){
   message(paste("Applying taxonomy. The next message will probably be warnings from geiger::nodelabel.phylo - don't be alarmed:",
                 "> The message 'redundant labels encountered' means that these levels are fully nested, no big deal.",
                 "> The message 'redundant labels encountered at root' means that the entire tree falls inside these taxa, also no big deal unless the first value is a very low taxonomic level.",
-                "> The message 'labels missing from phy' means that it couldn't place these taxonomic levels. We don't expect it to be able to place everything, but if this seems like a lot you could try running again with -notstrict (if you aren't already).",
+                "> The message 'labels missing from phy' means that it couldn't place these taxonomic levels. We don't expect it to be able to place everything, but if this seems like a lot you could try running again without -strict (if you aren't already).",
                 sep = '\n'))
-  phy <- nodelabel.phylo(phy, taxonomy, strict = !opt$notstrict, ncores = opt$threads)
+  phy <- nodelabel.phylo(phy, taxonomy, strict = opt$strict, ncores = opt$threads)
 }
 
 # Do renaming, if doing ---------------------------------------------------
