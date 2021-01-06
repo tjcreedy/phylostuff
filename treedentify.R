@@ -132,11 +132,6 @@ if ( is.null(opt) | !is.null(opt$help) ){
 }
 
 rm(spec)
-opt$usencbi <- TRUE
-opt$auth <- "~/passwords/api_tokens/ncbi_authentication.txt"
-opt$phylo <- "~/work/NHM_postdoc/MMGdatabase/phylogeny/phycomplete_plus_BIBC_ASVsetall_10pc_fasttree_2020-09-29_reroot_taxonomised.nwk"
-opt$taxcache <- "~/work/NHM_postdoc/references/NCBI_taxonomy.RDS"
-opt$tip <- "^uniq"
 
 # Set defaults -----------------------------------------------------------
 
