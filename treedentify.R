@@ -68,7 +68,7 @@ get_uid_local_and_remote <- function(terms, taxcache = NULL){
   return(c(localoutput, remoteoutput)[terms])
 }
 
-get_taxonomy_from_taxids <- function(taxids, taxcache){
+get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
   uuids <- unique(taxids)
   
   # Extract any from taxcache
@@ -84,6 +84,7 @@ get_taxonomy_from_taxids <- function(taxids, taxcache){
   taxncbi <- list()
   if ( length(uuids) > 0 ){
     taxncbi <- classification(uuids, db = "ncbi")
+    if ( is.null(auth) ) Sys.sleep(0.5)
     taxncbi <- taxncbi[!is.na(taxncbi)]
     message(paste("Taxonomy retrieved from remote NCBI search for", length(taxncbi), "unique NCBI taxids,"))
   }
@@ -228,7 +229,7 @@ while( length(taxids) < length(noveltaxonomy) ){
   i <- i + 1
 }
 
-gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache)
+gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, auth)
 taxidtaxonomy <- gtftreturn[[1]]
 rownames(taxidtaxonomy) <- names(taxids)
 taxcache <- gtftreturn[[2]]

@@ -196,7 +196,7 @@ get_taxonomy_from_file <- function(path, tips){
   return(taxondata)
 }
 
-get_taxids_from_taxonomy <- function(taxonomytable, taxcache){
+get_taxids_from_taxonomy <- function(taxonomytable, taxcache, auth){
   # Extract the present taxonomy levels in order
   preslevels <- taxlevels[taxlevels %in% colnames(taxonomytable)]
   
@@ -222,6 +222,7 @@ get_taxids_from_taxonomy <- function(taxonomytable, taxcache){
         suppressWarnings(
           remuids <- get_uid(uniqtaxa, messages = F, ask = F)
         )
+        if ( is.null(auth) ) Sys.sleep(0.5)
         remuids <- setNames(remuids, uniqtaxa)
       }
       uids <- c(locuids[!is.na(locuids)], remuids[!is.na(remuids)])
@@ -241,7 +242,7 @@ get_taxids_from_taxonomy <- function(taxonomytable, taxcache){
   return(taxids)
 }
 
-get_taxids_from_tiptaxonomy <- function(tips){
+get_taxids_from_tiptaxonomy <- function(tips, auth){
   tipuids <- sapply(tips, function(tip){
     out <- NA
     
@@ -254,7 +255,7 @@ get_taxids_from_tiptaxonomy <- function(tips){
     # If only one name still, try getting the taxon_id just by searching the whole name
     if ( length(tipsplit) == 1 ){
       out <- get_uid(tiprn, ask = F, messages = F)[1]
-      
+      if ( is.null(auth) ) Sys.sleep(0.5)
       # If no luck, try breaking it up
       if ( is.na(out) ) {
         tipsplit <- strsplit(tiprn, ' ')[[1]]
@@ -266,6 +267,7 @@ get_taxids_from_tiptaxonomy <- function(tips){
       tipsplit <- rev(tipsplit)
       for ( t in tipsplit ) {
         out <- get_uid(t, messages = F, ask = F)[1]
+        if ( is.null(auth) ) Sys.sleep(0.5)
         if ( !is.na(out) ) break
       }
     }
@@ -302,7 +304,7 @@ get_taxids_from_tipGBaccessions <- function(tips){
   return(gbout)
 }
 
-get_taxonomy_from_taxids <- function(taxids, taxcache){
+get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
   uuids <- unique(taxids)
   
   # Extract any from taxcache
@@ -318,6 +320,7 @@ get_taxonomy_from_taxids <- function(taxids, taxcache){
   taxncbi <- list()
   if ( length(uuids) > 0 ){
     taxncbi <- classification(uuids, db = "ncbi")
+    if ( is.null(auth) ) Sys.sleep(0.5)
     taxncbi <- taxncbi[!is.na(taxncbi)]
     message(paste("Taxonomy retrieved from remote NCBI search for", length(taxncbi), "unique NCBI taxids,"))
   }
@@ -489,13 +492,13 @@ if ( opt$usencbi ){
   # Retrieve taxonomy details from file if present
   if ( ! is.null(opt$taxonomy) ){
     taxonomy <- get_taxonomy_from_file(opt$taxonomy, tipswotaxonomy)
-    taxids <- append(taxids, get_taxids_from_taxonomy(taxonomy, taxcache))
+    taxids <- append(taxids, get_taxids_from_taxonomy(taxonomy, taxcache, auth))
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% rownames(taxonomy) ]
   }
   
   # If taxonomising nodes, search tips for taxonomy info
   if ( opt$taxonomise & length(tipswotaxonomy) > 0 ){
-    taxids <- append(taxids, get_taxids_from_tiptaxonomy(tipswotaxonomy))
+    taxids <- append(taxids, get_taxids_from_tiptaxonomy(tipswotaxonomy, opt$auth))
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% names(taxids) ]
     
     taxids <- append(taxids, get_taxids_from_tipGBaccessions(tipswotaxonomy))
@@ -503,7 +506,7 @@ if ( opt$usencbi ){
   }
   
   # Generate final complete taxonomy table
-  gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache)
+  gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, auth)
   taxidtaxonomy <- gtftreturn[[1]]
   rownames(taxidtaxonomy) <- names(taxids)
   taxcache <- gtftreturn[[2]]
