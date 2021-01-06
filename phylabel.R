@@ -219,9 +219,9 @@ get_taxids_from_taxonomy <- function(taxonomytable, taxcache, auth){
       }
       remuids <- c()
       if ( length(uniqtaxa) > 0 ){
-        suppressWarnings(
+        suppressWarnings(suppressMessages(
           remuids <- get_uid(uniqtaxa, messages = F, ask = F)
-        )
+        ))
         if ( is.null(auth) ) Sys.sleep(0.5)
         remuids <- setNames(remuids, uniqtaxa)
       }
@@ -254,7 +254,9 @@ get_taxids_from_tiptaxonomy <- function(tips, auth){
     
     # If only one name still, try getting the taxon_id just by searching the whole name
     if ( length(tipsplit) == 1 ){
-      out <- get_uid(tiprn, ask = F, messages = F)[1]
+      suppressWarnings(suppressMessages(
+        out <- get_uid(tiprn, ask = F, messages = F)[1]
+      ))
       if ( is.null(auth) ) Sys.sleep(0.5)
       # If no luck, try breaking it up
       if ( is.na(out) ) {
@@ -262,11 +264,13 @@ get_taxids_from_tiptaxonomy <- function(tips, auth){
       }
     }
     
-    if ( is.na(out) ) {
+    if ( is.na(out) & length(tipsplit) > 1) {
       # Try each subset from the end
       tipsplit <- rev(tipsplit)
       for ( t in tipsplit ) {
-        out <- get_uid(t, messages = F, ask = F)[1]
+        suppressWarnings(suppressMessages(
+          out <- get_uid(t, messages = F, ask = F)[1]
+        ))
         if ( is.null(auth) ) Sys.sleep(0.5)
         if ( !is.na(out) ) break
       }
@@ -283,9 +287,9 @@ get_taxids_from_tiptaxonomy <- function(tips, auth){
   return(tipout)
 }
 
-get_taxids_from_tipGBaccessions <- function(tips){
+get_taxids_from_tipGBaccessions <- function(tips, auth){
   # Extract genbank accessions from the tips
-  gbaccessions <- sapply(unknowntips, function(tip){
+  gbaccessions <- sapply(tips, function(tip){
     regmatches(tip, regexpr("(?:[^A-Za-z0-9]|^)[A-Z]{1,2}_{0,1}[0-9]{5,8}(?:[^A-Za-z0-9]|$)", tip))[1]
   })
   gbout <- NULL
@@ -294,7 +298,10 @@ get_taxids_from_tipGBaccessions <- function(tips){
     gbdf <- data.frame(gbacc = gbaccessions, id = unknowntips)[gbaccessions != '' & !is.na(gbaccessions),]
     
     # Retrieve the taxon ids from genbank and drop rows without taxon ids
-    gbdf$taxon_id <- unlist(genbank2uid(gbdf$gbacc))
+    gbdf$taxon_id <- suppressMessages(suppressWarnings(
+      unlist(genbank2uid(gbdf$gbacc))
+    ))
+    if ( is.null(auth) ) Sys.sleep(0.5)
     gbout <- gbdf[! is.na(gbdf$taxon_id), 'taxon_id']
     names(gbout) <- row.names(gbdf)
   }
@@ -319,7 +326,9 @@ get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
   uuids <- uuids[! uuids %in% inlocal]
   taxncbi <- list()
   if ( length(uuids) > 0 ){
-    taxncbi <- classification(uuids, db = "ncbi")
+    suppressWarnings(suppressMessages(
+      taxncbi <- classification(uuids, db = "ncbi")
+    ))
     if ( is.null(auth) ) Sys.sleep(0.5)
     taxncbi <- taxncbi[!is.na(taxncbi)]
     message(paste("Taxonomy retrieved from remote NCBI search for", length(taxncbi), "unique NCBI taxids,"))
@@ -374,6 +383,13 @@ spec <- matrix(c(
 # Read options and do help -----------------------------------------------
 
 opt <- getopt(spec)
+
+opt$phylogeny <- "phylogeny_GB_CCCP_otus_greedy_0.97.tre"
+opt$taxonomy <- "taxonomy_GB_CCCP.csv"
+opt$taxonomise <- T
+opt$usencbi <- T
+opt$output <- "labelled_tree.tre"
+
 
 if ( is.null(opt) | !is.null(opt$help) ){
   message(getopt(spec, usage = T))
@@ -474,7 +490,7 @@ if ( opt$usencbi ){
   }
   
   # Load API key if present 
-    if ( !is.null(opt$auth) ){
+  if ( !is.null(opt$auth) ){
     authlines <- readLines(opt$auth)
     authlines <- authlines[! grepl("^#", authlines)]
     options(ENTREZ_KEY = authlines[2])
@@ -496,8 +512,8 @@ if ( opt$usencbi ){
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% rownames(taxonomy) ]
   }
   
-  # If taxonomising nodes, search tips for taxonomy info
-  if ( opt$taxonomise & length(tipswotaxonomy) > 0 ){
+  # If taxonomising nodes, search tips for taxonomy info if requested
+  if ( opt$taxonomise & length(tipswotaxonomy) > 0){
     taxids <- append(taxids, get_taxids_from_tiptaxonomy(tipswotaxonomy, opt$auth))
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% names(taxids) ]
     

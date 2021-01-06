@@ -50,7 +50,7 @@ listancestors <- function(tree, n, inc.n = F){
   }
 }
 
-get_uid_local_and_remote <- function(terms, taxcache = NULL){
+get_uid_local_and_remote <- function(terms, taxcache = NULL, auth){
   if( !is.null(taxcache) & length(taxcache) > 0 ){
     taxtable <- do.call("rbind", taxcache)
     taxtable <- unique(taxtable)
@@ -62,7 +62,10 @@ get_uid_local_and_remote <- function(terms, taxcache = NULL){
     localoutput <- NULL
   }
   remoteterms <- terms[ ! terms %in% names(localoutput) ]
-  remotesearch <- suppressWarnings(get_uid(remoteterms, ask = F, messages = F))
+  suppressWarnings(suppressMessages(
+    remotesearch <- get_uid(remoteterms, ask = F, messages = F)
+  ))
+  if ( is.null(auth) ) Sys.sleep(0.5)
   attributes(remotesearch) <- NULL
   remoteoutput <- setNames(remotesearch, remoteterms)
   return(c(localoutput, remoteoutput)[terms])
@@ -83,7 +86,9 @@ get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
   uuids <- uuids[! uuids %in% inlocal]
   taxncbi <- list()
   if ( length(uuids) > 0 ){
-    taxncbi <- classification(uuids, db = "ncbi")
+    suppressMessages(suppressWarnings(
+      taxncbi <- classification(uuids, db = "ncbi")
+    ))
     if ( is.null(auth) ) Sys.sleep(0.5)
     taxncbi <- taxncbi[!is.na(taxncbi)]
     message(paste("Taxonomy retrieved from remote NCBI search for", length(taxncbi), "unique NCBI taxids,"))
@@ -221,7 +226,7 @@ while( length(taxids) < length(noveltaxonomy) ){
   est <- setNames(grepl('\"', taxa), names(taxa))
   taxa <- gsub('\"', '', taxa)
   uniqtaxa <- unique(taxa)
-  uids <- get_uid_local_and_remote(unique(taxa), taxcache)
+  uids <- get_uid_local_and_remote(unique(taxa), taxcache, opt$auth)
   uids <- uids[!is.na(uids)]
   foundtaxa <- taxa[taxa %in% names(uids)]
   taxids <- append(taxids, setNames(uids[foundtaxa], names(foundtaxa)))
