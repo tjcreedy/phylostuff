@@ -197,7 +197,6 @@ get_taxonomy_from_file <- function(path, tips){
 }
 
 get_taxids_from_taxonomy <- function(taxonomytable, taxcache){
-  taxonomytable <- taxonomy
   # Extract the present taxonomy levels in order
   preslevels <- taxlevels[taxlevels %in% colnames(taxonomytable)]
   
@@ -431,7 +430,7 @@ if ( !is.null(opt$nameorder) ){
   if ( !is.null(opt$taxonomy) | !is.null(opt$taxids) ) { opt$nameorder <- append(opt$nameorder, c('taxonomy', 'species')) }
   if ( !is.null(opt$metadata) ) { opt$nameorder <- append(opt$nameorder, 'metadata') }
 }
-if ( opt$taxonomise & (!opt$usencbi & is.null(taxonomy))){
+if ( opt$taxonomise & (!opt$usencbi & is.null(opt$taxonomy))){
   stop("To taxonomise without NCBI, supply taxonomy information to --taxonomy")
 }
 
