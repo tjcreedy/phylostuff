@@ -359,7 +359,7 @@ spec <- matrix(c(
   'nameorder'   , 'd', 2, "character", "comma-separated list giving the order of \'name\', \'taxonomy\', \'metadata\', \'genepresence\' and/or \'species\' in new tip names",
   'taxonomy'    , 'y', 2, "character", "path to a table containing taxonomies to add to tip labels and/or taxonomise the tree with",
   'taxlevels'   , 'v', 2, "character", "comma-separated list of taxonomic levels to use in renaming tips",
-  'usencbi'     , 'n', 2, "logical"  , "search taxonomy information against NCBI to fill in missing levels",
+  'usencbi'     , 'u', 2, "logical"  , "search taxonomy information against NCBI to fill in missing levels",
   'ncbitaxids'  , 'i', 2, "character", "path to a table containing ncbi taxids to retrieve taxonomy for adding to tip labels and/or taxonomisation",
   'taxcache'    , 'c', 2, 'character', "path to a .RDS cache of taxonomy data to read from and/or write to",
   'auth'        , 'a', 2, "character", "an ncbi_authentication text file with your API key as the second line not beginning with #",
@@ -492,7 +492,7 @@ if ( opt$usencbi ){
   # Retrieve taxonomy details from file if present
   if ( ! is.null(opt$taxonomy) ){
     taxonomy <- get_taxonomy_from_file(opt$taxonomy, tipswotaxonomy)
-    taxids <- append(taxids, get_taxids_from_taxonomy(taxonomy, taxcache, auth))
+    taxids <- append(taxids, get_taxids_from_taxonomy(taxonomy, taxcache, opt$auth))
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% rownames(taxonomy) ]
   }
   
@@ -506,7 +506,7 @@ if ( opt$usencbi ){
   }
   
   # Generate final complete taxonomy table
-  gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, auth)
+  gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, opt$auth)
   taxidtaxonomy <- gtftreturn[[1]]
   rownames(taxidtaxonomy) <- names(taxids)
   taxcache <- gtftreturn[[2]]
