@@ -229,7 +229,7 @@ while( length(taxids) < length(noveltaxonomy) ){
   i <- i + 1
 }
 
-gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, auth)
+gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, opt$auth)
 taxidtaxonomy <- gtftreturn[[1]]
 rownames(taxidtaxonomy) <- names(taxids)
 taxcache <- gtftreturn[[2]]
