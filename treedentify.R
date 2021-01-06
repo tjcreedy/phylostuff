@@ -142,7 +142,7 @@ if( is.null(opt$usencbi) ){
   opt$usencbi <- FALSE
 } else {
   if( is.null(opt$auth) ){
-    stop("To --usencbi, --auth must be supplied")
+    warning("Warning: trying to access NCBI without API authentication. This might not work. You might want to use --auth")
   }
 }
 

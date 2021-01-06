@@ -395,7 +395,7 @@ if ( !opt$rename & !opt$taxonomise ){
   stop("Specify to --rename and/or --taxonomise")
 }
 if ( opt$usencbi & is.null(opt$auth) ){
-  stop("NCBI authentication file is required if using NCBI")
+  warning("Warning: trying to access NCBI without API authentication. This might not work. You might want to use --auth")
 }
 if ( !opt$rename & 
      ( !is.null(opt$metadata) | !is.null(opt$genepresence) | opt$tobycodes | !is.null(opt$metanames) | !is.null(opt$nameorder) | !is.null(opt$taxlevels)) ){
