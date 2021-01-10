@@ -384,13 +384,6 @@ spec <- matrix(c(
 
 opt <- getopt(spec)
 
-opt$phylogeny <- "phylogeny_GB_CCCP_otus_greedy_0.97.tre"
-opt$taxonomy <- "taxonomy_GB_CCCP.csv"
-opt$taxonomise <- T
-opt$usencbi <- T
-opt$output <- "labelled_tree.tre"
-
-
 if ( is.null(opt) | !is.null(opt$help) ){
   message(getopt(spec, usage = T))
   q(status = 1)
