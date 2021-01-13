@@ -154,7 +154,7 @@ get_taxids_from_file <- function(path, tips){
     if ( length(taxid_name) > 0 ){
       taxids <- setNames(taxiddata[, taxidname[1]], rownames(taxiddata))
     } else {
-      exit(paste("Error: cannot find column named taxon_id, taxid or ncbi_taxid in", path))
+      stop(paste("Error: cannot find column named taxon_id, taxid or ncbi_taxid in", path))
     }
   }
   
@@ -168,7 +168,7 @@ get_taxids_from_file <- function(path, tips){
   } else {
     exit(paste("Error: cannot find any rows in", path, "matching to tips on the tree"))
   }
-  message("Found", length(taxids), "NCBI taxids matching tips on the tree in", path)
+  message("Found ", length(taxids), " NCBI taxids matching tips on the tree in ", path)
   return(taxids)
 }
 
@@ -312,12 +312,13 @@ get_taxids_from_tipGBaccessions <- function(tips, auth){
 }
 
 get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
+  taxids <- as.character(taxids)
   uuids <- unique(taxids)
   
   # Extract any from taxcache
   inlocal <- uuids[uuids %in% names(taxcache)]
   taxlocal <- list()
-  if ( !is.null(taxcache) & length(inlocal) > 0 ) {
+  if ( !is.null(taxcache) & length(inlocal) > 0  ){
     taxlocal <- taxcache[inlocal]
     message(paste("Taxonomy retrieved from local NCBI cache for", length(taxlocal), "unique NCBI taxids,"))
   }
@@ -336,7 +337,7 @@ get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
   
   # Concatenate
   taxall <- c(taxlocal, taxncbi)
-  taxall <- setNames(taxall[taxids], names(taxids))
+  taxall <- setNames(taxall[as.character(taxids)], names(taxids))
   
   # Convert to data frame
   taxonomy <- do.call('rbind.fill', lapply(taxall, function(cls){
@@ -365,9 +366,9 @@ spec <- matrix(c(
   'taxonomise'  , 'x', 0, "logical"  , "assign taxonomic levels to nodes on the tree",
   'excludetip'  , 'e', 2, "character", "regular expression denoting tips that should not be used for taxonomisation ( e.g. \'^otu\')",
   'rename'      , 'r', 0, "logical"  , "rename tips using taxonomy, presence and/or metadata information given",
-  'nameorder'   , 'd', 2, "character", "comma-separated list giving the order of \'name\', \'taxonomy\', \'metadata\', \'genepresence\' and/or \'species\' in new tip names",
+  'nameorder'   , 'd', 2, "character", "comma-separated list giving the order of \'name\', \'genepresence\', \'taxonomy\', \'species\' and/or \'metadata\' in new tip names (default uses any supplied in that order)",
   'taxonomy'    , 'y', 2, "character", "path to a table containing taxonomies to add to tip labels and/or taxonomise the tree with",
-  'taxlevels'   , 'v', 2, "character", "comma-separated list of taxonomic levels to use in renaming tips",
+  'taxlevels'   , 'v', 2, "character", "comma-separated list of taxonomic levels to use in renaming tips (default: order,family)",
   'usencbi'     , 'u', 2, "logical"  , "search taxonomy information against NCBI to fill in missing levels",
   'ncbitaxids'  , 'i', 2, "character", "path to a table containing ncbi taxids to retrieve taxonomy for adding to tip labels and/or taxonomisation",
   'taxcache'    , 'c', 2, 'character', "path to a .RDS cache of taxonomy data to read from and/or write to",
@@ -381,6 +382,7 @@ spec <- matrix(c(
 ), byrow = T, ncol = 5)
 
 # Read options and do help -----------------------------------------------
+
 
 opt <- getopt(spec)
 
@@ -414,17 +416,18 @@ if ( !opt$rename &
   stop("When only taxonomising, --metadata, --genepresence, --tobycodes, --metanames, --nameorder, --taxlevels are redundant")
 }
 if ( ! is.null(opt$taxlevels) ) {
-  if ( ! all(opt$taxlevels) %in% c('morphospecies', taxlevels) ){
+  opt$taxlevels <- strsplit(opt$taxlevels, ",")[[1]]
+  if ( ! all(opt$taxlevels %in% c('morphospecies', taxlevels)) ){
     stop("Error: unrecognised taxonomic level passed to --taxlevels")
   } else {
-    opt$taxlevels <- rev(c('morphospecies', taxlevels)[match(c('morphospecies', taxlevels), opt$taxlevels)])
+    opt$taxlevels <- c('morphospecies', taxlevels)[match(opt$taxlevels, c('morphospecies', taxlevels))]
   }
 } else {
   opt$taxlevels <- c('order', 'family')
 } 
 if ( !is.null(opt$nameorder) ){
   opt$nameorder <- strsplit(opt$nameorder, ',', fixed = T)
-  if ( any( c('species', 'taxonomy') %in% opt$nameorder) & !opt$taxonomy & !opt$taxids ) {
+  if ( any( c('species', 'taxonomy') %in% opt$nameorder) & !opt$taxonomy & !opt$ncbitaxids ) {
     stop("To rename with taxonomy and/or species, supply table(s) to --taxonomy and/or --taxids")
   }
   if ( 'species' %in% opt$nameorder & 'species' %in% opt$taxlevels ){
@@ -439,7 +442,7 @@ if ( !is.null(opt$nameorder) ){
 } else {
   opt$nameorder <- 'name'
   if ( !is.null(opt$genepresence) ) { opt$nameorder <- append(opt$nameorder, 'genepresence') }
-  if ( !is.null(opt$taxonomy) | !is.null(opt$taxids) ) { opt$nameorder <- append(opt$nameorder, c('taxonomy', 'species')) }
+  if ( !is.null(opt$taxonomy) | !is.null(opt$ncbitaxids) ) { opt$nameorder <- append(opt$nameorder, c('taxonomy', 'species')) }
   if ( !is.null(opt$metadata) ) { opt$nameorder <- append(opt$nameorder, 'metadata') }
 }
 if ( opt$taxonomise & (!opt$usencbi & is.null(opt$taxonomy))){
@@ -493,7 +496,7 @@ if ( opt$usencbi ){
   tipswotaxonomy <- unknowntips
   
   # Retrieve taxids from file if present
-  if ( ! is.null(opt$taxids) ){
+  if ( ! is.null(opt$ncbitaxids) ){
     taxids <- get_taxids_from_file(opt$ncbitaxids, tipswotaxonomy)
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% names(taxids) ]
   }
@@ -520,10 +523,10 @@ if ( opt$usencbi ){
   rownames(taxidtaxonomy) <- names(taxids)
   taxcache <- gtftreturn[[2]]
   
-  if ( 'morphospecies' %in% colnames(taxonomy) ){
+  if ( exists("taxonomy") && 'morphospecies' %in% colnames(taxonomy) ){
     taxidtaxonomy <- cbind( taxonomy[rownames(taxidtaxonomy), 'morphospecies'], taxidtaxonomy )
   }
-  if ( any( !rownames(taxonomy) %in% rownames(taxidtaxonomy) ) ){
+  if ( exists("taxonomy") && any( !rownames(taxonomy) %in% rownames(taxidtaxonomy) ) ){
     taxonomy <- rbind.fill(taxidtaxonomy, taxonomy[! rownames(taxonomy) %in% rownames(taxidtaxonomy), ])
   } else {
     taxonomy <- taxidtaxonomy
@@ -540,7 +543,7 @@ if ( opt$usencbi ){
   }
   
 }
-  
+ 
 # Parse taxonomy for renaming, if doing
 if ( opt$rename ){
   if ( 'taxonomy' %in% opt$nameorder ) {
