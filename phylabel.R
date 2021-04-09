@@ -120,7 +120,7 @@ generate_tobycodes <- function(df, taxcolumns){
   }
   x <- apply(x, 2, get_uniq_substrings)
   xcolnames <- colnames(x)
-  x <- get_taxon_list(x, taxcolumns)
+  x <- generate_taxonlist(x, taxcolumns)
   return(sapply(x, function(y){
     paste0(which(xcolnames %in% names(y)), y, collapse = '')
   }))
