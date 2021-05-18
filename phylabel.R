@@ -472,7 +472,8 @@ if ( !is.null(opt$genepresence) ){
 }
 
 if ( !is.null(opt$metadata) ){
-  renamelist[['metadata']] <- parse_metadata(opt$metadata, opt$metanames)
+  names <- strsplit(opt$metanames, ',')[[1]]
+  renamelist[['metadata']] <- parse_metadata(opt$metadata, names)
 }
 
 # Get taxonomy ------------------------------------------------------------
