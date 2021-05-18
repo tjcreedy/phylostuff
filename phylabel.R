@@ -136,7 +136,7 @@ parse_presence <- function(path, genes = c('ND1', 'CYTB', 'ND6', 'ND4L', 'ND4', 
 
 parse_metadata <- function(path, names){
   metadata <- read.tabular(path)
-  metadata <- metadata[, names[names %in% colnames(metadata)]]
+  metadata <- metadata[, names[names %in% colnames(metadata)], drop = F]
   metadata <- setNames(apply(metadata, 1, function(x) paste(x, collapse = '-')), rownames(metadata))
   return(metadata)
 }
@@ -374,7 +374,7 @@ spec <- matrix(c(
   'taxcache'    , 'c', 2, 'character', "path to a .RDS cache of taxonomy data to read from and/or write to",
   'auth'        , 'a', 2, "character", "an ncbi_authentication text file with your API key as the second line not beginning with #",
   'metadata'    , 'm', 2, "character", "path to a table containing metadata to add to tip labels",
-  'metacolumns' , 'l', 2, "character", "comma separated list of columns to use from metadata table",
+  'metanames'   , 'l', 2, "character", "comma separated list of columns to use from metadata table",
   'tobycodes'   , 'b', 0, "logical"  , "use abbreviated taxonomy names (\"tobycodes\") instead of full taxonomy",
   'genepresence', 'g', 2, "character", "path to a gene presence file to parse and add to tip labels",
   'threads'     , 't', 2, 'integer'  , "number of threads to run on (only used for taxonomisation)",
