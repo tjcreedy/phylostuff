@@ -62,7 +62,7 @@ get_uid_local <- function(terms, localcache, rank){
 }
 
 generate_taxonlist <- function(df, taxcolumns,  onlyifonly = NULL, ntaxa = NULL){
-  x <- df[, taxcolumns[taxcolumns %in% colnames(df)]]
+  x <- df[, taxcolumns[taxcolumns %in% colnames(df)], drop = F]
   if(is.null(ntaxa)){
     ntaxa <- ncol(x)
   }
