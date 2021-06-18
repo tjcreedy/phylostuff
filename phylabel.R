@@ -433,10 +433,10 @@ if ( !is.null(opt$nameorder) ){
   if ( 'species' %in% opt$nameorder & 'species' %in% opt$taxlevels ){
     stop("\'species\' is in both --nameorder and --taxlevels, pick one otherwise you'll have redundant names")
   }
-  if ( 'metadata' %in% opt$nameorder & !opt$metadata ){
+  if ( 'metadata' %in% opt$nameorder & is.null(opt$metadata) ){
     stop("To rename with metadata, supply table to --metadata")
   }
-  if ( 'genepresence' %in% opt$nameorder & !opt$genepresence ){
+  if ( 'genepresence' %in% opt$nameorder & is.null(opt$genepresence) ){
     stop("To rename with genepresence, supply table to --genepresence")
   }
 } else {
