@@ -427,7 +427,7 @@ if ( ! is.null(opt$taxlevels) ) {
 } 
 if ( !is.null(opt$nameorder) ){
   opt$nameorder <- strsplit(opt$nameorder, ',', fixed = T)
-  if ( any( c('species', 'taxonomy') %in% opt$nameorder) & !opt$taxonomy & !opt$ncbitaxids ) {
+  if ( any( c('species', 'taxonomy') %in% opt$nameorder) & is.null(opt$taxonomy) & is.null(opt$ncbitaxids) ) {
     stop("To rename with taxonomy and/or species, supply table(s) to --taxonomy and/or --taxids")
   }
   if ( 'species' %in% opt$nameorder & 'species' %in% opt$taxlevels ){
