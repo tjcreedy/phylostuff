@@ -127,7 +127,7 @@ generate_tobycodes <- function(df, taxcolumns){
 }
 
 parse_presence <- function(path, genes = c('ND1', 'CYTB', 'ND6', 'ND4L', 'ND4', 'ND5', 'ND3', 'COX3', 'ATP6', 'ATP8', 'COX2', 'COX1', 'ND2')){
-  presence <- readlines(path)
+  presence <- readLines(path)
   presence <- strsplit(presence, ',|\t') 
   return(sapply(presence, function(l){
     setNames(paste0(ifelse(genes %in% l[-1], 'X', '-'), collapse = ''), l[1])
@@ -593,3 +593,4 @@ if ( opt$rename ){
 
 # Output ------------------------------------------------------------------
 write.tree(phy, opt$output)
+message(paste("Completed successfully, tree written to",  opt$output))
