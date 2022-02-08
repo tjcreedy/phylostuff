@@ -174,6 +174,34 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
   }
 }
 
+count_monophyletic_subtrees_by_group <- function(tree, group){
+  gr <- unique(group) %>% sort
+  out <- bind_cols(data.frame(group = group),
+                   sapply(group, function(g){
+                     tips <- tree$tip.labels[group == gr]
+                     c(ntips = length(tips),
+                       nmono = find_monophyletic_subtrees(tree, tips) %>% length)
+                   }) %>% t() %>% data.frame() %>% setNames(c("ntips", "nmono")))
+  row.names(out) <- NULL
+  return(out)
+}
+
+consistency_index <- function(min, obs) min/obs
+retention_index <- function(min, max, obs) (max - obs)/(max - min)
+
+calculate_taxonomic_indices <- function(tree, taxonomy){
+  bt <- count_monophyletic_subtrees_by_group(tree, taxonomy) %>%
+    mutate(
+      TCI = consistency_index(1, nmono),
+      TRI = retention_index(1, ntips, nmono)
+    )
+  bti <- bytaxon %>% filter(ntips > 1)
+  sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), CTCI = mean(bti$TCI), CTRI = CTRI)
+  return(list(summary = sm,
+              informative = bti,
+              all = bt))
+}
+
 mean_patristic_distance <- function(tree){
   m <- sapply(tree$edge[,2], function(x) length( listdescendants(tree, x , nodes = F, inc.n = T) ) )
   return( sum( m * (Ntip(tree) - m) * tree$edge.length )/( ( Ntip(tree)^2 - Ntip(tree) ) / 2 ) ) 
