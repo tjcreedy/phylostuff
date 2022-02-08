@@ -37,7 +37,7 @@ listdescendants <- function(tree, n, nodes = T, tips = T, inc.n = F){
 
   chs <- tree$edge[tree$edge[,1] == n, 2]
   
-  out <- unlist(sapply(chs, function(ch){
+  out <- unlist(lapply(chs, function(ch){
     if(ch <= Ntip(tree)){
       if(tips == T){
         return(ch)
@@ -57,6 +57,33 @@ listdescendants <- function(tree, n, nodes = T, tips = T, inc.n = F){
     out <- c(n, out)
   }
   return(out)
+}
+
+splits <- function(phy, label.tips = F){
+  # get all node numbers
+  nodes <- Ntip(phy) + 1:phy$Nnode
+  
+  # get children below each node
+  children <- c(
+    # tips
+    as.list(phy$tip.label),
+    # internal nodes
+    lapply(nodes, function(n) listdescendants(phy, n, nodes = F, 
+                                              tips = if(label.tips) "labels" else T)) )
+  # make sure tip names are sorted alphabetically for future comparison
+  children <- lapply(children, sort)
+  
+  # convert edge table into list of node id splits
+  splits <- lapply(nodes, function(n) phy$edge[phy$edge[, 1] == n, 2])
+  
+  # retrieve tips below each node
+  splits <- lapply(splits, function(s) children[s])
+  # ensure splits are sorted alphabetically for future comparison
+  splits <- lapply(splits, function(s) s[order(unlist(lapply(s, "[[", 1)))] )
+  # set names of splits
+  names(splits) <- nodes
+  
+  return(splits)
 }
 
 rootdist <- function(tree, n){
@@ -143,7 +170,7 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
     return(currtips[intips])
   } else {
     chs <- tree$edge[tree$edge[,1] == start, 2]
-    return(c(find_monophyletic_subtrees(tree, tips, start = chs[1]), find_monophyletic_subtrees(tree, tips, start = chs[2])))
+    return(unlist(sapply(chs, function(ch) find_monophyletic_subtrees(tree, tips, start = ch))))
   }
 }
 

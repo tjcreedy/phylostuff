@@ -45,20 +45,74 @@ read.tabular <- function(path){
   }
 }
 
-get_uid_local <- function(terms, localcache, rank){
+generate_uid_table <- function(cache){
+  utab <- do.call("rbind", cache)
+  utab <- unique(utab)
+  row.names(utab) <- NULL
+  return(utab)
+}
+
+get_uid_local.uidtable <- function(terms, localcache, rank = NULL){
+  utab <- generate_uid_table(localcache)
+  if( !is.null(rank) ){ # This option is more elegant but substantially slower than the sapply version in the parent function
+    utab <- utab[utab$rank == rank, ]  
+  }
+  alluids <- setNames(utab$id, utab$name)
+  return(unname(alluids[terms]))
+}
+
+get_uid_local <- function(terms, localcache, rank = NULL, method = if( is.null(rank) ) "table" else "search"){
+  method <- match.arg(method)
   # terms = uniqtaxa
   # localcache = taxcache
   # rank = preslevels[level]
-  taxnames <- sapply(localcache, function(td){
-    if ( rank %in% td$rank ){
-      return(td$name[td$rank == rank])
-    } else {
-      return(NA)
+  if( !is.null(rank) ){
+    if(method == "search"){
+      taxnames <- sapply(localcache, function(td){
+        if ( rank %in% td$rank ){
+          return(td$name[td$rank == rank])
+        } else {
+          return(NA)
+        }
+      })
+      taxnames <- taxnames[!is.na(taxnames)]
+      taxnames <- setNames(names(taxnames), taxnames)
+      return(unname(taxnames[terms]))
+    } else if(method == "table"){
+      return(get_uid_local.uidtable(terms, localcache, rank = rank))
     }
-  })
-  taxnames <- taxnames[!is.na(taxnames)]
-  taxnames <- setNames(names(taxnames), taxnames)
-  return(unname(taxnames[terms]))
+  } else {
+    if(method == "table"){
+      return(get_uid_local.uidtable(terms, localcache, rank = NULL))
+    } else {
+      stop("Error: when rank is not supplied, only table method is available")
+    }
+  }
+}
+
+validate_taxcache <- function(taxcache, path = NULL, exit.text = NULL){
+  baseuids <- sapply(taxcache, function(tc) rev(tc$id)[1])
+  check <- names(taxcache) == baseuids
+  if( ! all(check) ){
+    taxcache <- taxcache[check]
+    if( ! is.null(path) ){
+      saveRDS(taxcache, path)
+    }
+    if( ! is.null(exit.text) ){
+      stop(exit.text)
+    }
+  }
+  return(taxcache)
+}
+
+update_taxcache <- function(taxids, taxcache, auth, indent = ""){
+  taxids <- taxids[! taxids %in% names(taxcache) ]
+  if( length(taxids) == 0 ){
+    return(list())
+  }
+  message(indent, "Updating taxonomy cache for new ", length(taxids), " taxids")
+  newtaxcache <- get_taxonomy_from_taxids(taxids, taxcache, auth, indent = paste0(indent, "\t"))[[2]][taxids]
+  return(newtaxcache)
 }
 
 generate_taxonlist <- function(df, taxcolumns,  onlyifonly = NULL, ntaxa = NULL){
@@ -168,7 +222,7 @@ get_taxids_from_file <- function(path, tips){
   } else {
     exit(paste("Error: cannot find any rows in", path, "matching to tips on the tree"))
   }
-  message("Found ", length(taxids), " NCBI taxids matching tips on the tree in ", path)
+  message("\tRead ", length(taxids), " NCBI taxids matching tips on the tree in ", path)
   return(taxids)
 }
 
@@ -192,99 +246,210 @@ get_taxonomy_from_file <- function(path, tips){
   } else {
     exit(paste("Error: cannot find any columns in", path, "that match to known taxonomy levels"))
   }
-  message("Found ", nrow(taxondata), " rows of ", ncol(taxondata), " taxonomy levels matching tips on the tree in ", path)
+  message("\tRead ", nrow(taxondata), " rows of ", ncol(taxondata), " taxonomy levels ",
+          if('morphospecies' %in% colnames(taxondata)) "(including morphospecies) ",
+          "matching tips on the tree in ", path)
   return(taxondata)
 }
 
+get_uid_remote <- function(names, auth, indent = ""){
+  message(indent, "Running remote NCBI search on ", length(names), " taxon terms...", appendLF = F)
+  start <- Sys.time()
+  suppressWarnings(suppressMessages(
+    uids <- get_uid(names, messages = F, ask = F)
+  ))
+  stop <- Sys.time()
+  searchtime <- as.numeric(difftime(stop, start, units = "secs"))
+  message("completed in ", round(searchtime, 1), " seconds")
+  if ( is.null(auth) ) Sys.sleep(0.5)
+  return(uids)
+}
+
 get_taxids_from_taxonomy <- function(taxonomytable, taxcache, auth){
+  require(taxize)
   # Extract the present taxonomy levels in order
   preslevels <- taxlevels[taxlevels %in% colnames(taxonomytable)]
   
   # Setup taxid container
   taxids <- NULL
   
+  # Setup unmatched name recording
+  unmatchednames <- lapply(preslevels, function(x) NULL)
+  setNames(unmatchednames, preslevels)
+  
   # Find taxon ids using taxize by working up the available taxonomic levels
   taxonomytable <- taxonomytable[, preslevels]
+  message("\tSearching a taxonomy table with ", 
+          nrow(taxonomytable), 
+          " entries and ", 
+          ncol(taxonomytable), 
+          " taxonomy levels to find NCBI taxids:")
   level <- 1
   while( level <= length(preslevels) & nrow(taxonomytable) > 0 ){
     taxa <- taxonomytable[,level]
     uniqtaxa <- unique(taxa)
     uniqtaxa <- na.omit(uniqtaxa[uniqtaxa != ''])
+    message("\t\tLevel ", level, " (", preslevels[level], ") has data for ", sum(taxa != ''), " entries, ", length(uniqtaxa), " unique names")
     if( length(uniqtaxa) > 0 ){
       locuids <- c()
       if ( length(taxcache) > 0 ){
         locuids <- get_uid_local(uniqtaxa, taxcache, preslevels[level])
         locuids <- setNames(locuids, uniqtaxa)
         uniqtaxa <- uniqtaxa[is.na(locuids)]
+        message("\t\t\tMatched ", sum(!is.na(locuids)), " names to taxids from local taxonomy cache")
       }
       remuids <- c()
       if ( length(uniqtaxa) > 0 ){
-        suppressWarnings(suppressMessages(
-          remuids <- get_uid(uniqtaxa, messages = F, ask = F)
-        ))
-        if ( is.null(auth) ) Sys.sleep(0.5)
+        remuids <- get_uid_remote(uniqtaxa, auth, indent = "\t\t\t")
         remuids <- setNames(remuids, uniqtaxa)
+        uniqtaxa <- uniqtaxa[is.na(remuids)]
+        message("\t\t\tMatched ", sum(!is.na(remuids)), " names to taxids from remote taxonomy")
       }
       uids <- c(locuids[!is.na(locuids)], remuids[!is.na(remuids)])
       foundtaxids <- setNames(uids[taxa], rownames(taxonomytable))
       foundtaxids <- foundtaxids[!is.na(foundtaxids)]
       taxids <- append(taxids, foundtaxids)
       taxonomytable <- taxonomytable[! rownames(taxonomytable) %in% names(taxids), ]
+      message("\t\t\tFound taxids for ", length(uids), " unique names, ", length(uniqtaxa), " could not be matched")
+      unmatchednames[[preslevels[level]]] <- uniqtaxa
     }
     level <- level + 1
+    message("\t\t\tTaxonomy table has ", nrow(taxonomytable), " unknown rows remaining")
   }
   
   if( nrow(taxonomytable) > 0 ){
     taxids <- append(taxids, setNames(rep(NA, nrow(taxonomytable)), rownames(taxonomytable)))
   }
-  
+  message("\tCompleted taxid search, successfully found taxids for ", sum(!is.na(taxids)), "/", length(taxids), " input taxonomies")
   # Return
   return(taxids)
 }
 
-get_taxids_from_tiptaxonomy <- function(tips, auth){
-  tipuids <- sapply(tips, function(tip){
-    out <- NA
+get_rank_from_uid <- function(uid, knownranks, localcache, auth, indent){
+  # Set up accessory function and vector of unranked ranks
+  convert_ranks <- function(ranks, knownranks) unname(setNames(1:length(knownranks), knownranks)[ranks])
+  shitranks <- c("no rank", "clade")
+  # Get all taxonomy into table to find ranks
+  cache <- list()
+  tries <- 0
+  while(length(cache) < length(uid) & tries < 3){
+    tries <- tries + 1
+    wrap <- if(tries > 1) suppressMessages else identity
+    cache <- wrap(get_taxonomy_from_taxids(uid, localcache, auth, "\t\t\t\t")[[2]][uid])
+    cache <- cache[!is.na(cache)]
     
-    # Remove any underscores
-    tiprn <- gsub('_+', ' ', tip)
-    
-    # Split up by common separators
-    tipsplit <- strsplit(tiprn, ';,')[[1]]
-    
-    # If only one name still, try getting the taxon_id just by searching the whole name
-    if ( length(tipsplit) == 1 ){
-      suppressWarnings(suppressMessages(
-        out <- get_uid(tiprn, ask = F, messages = F)[1]
-      ))
-      if ( is.null(auth) ) Sys.sleep(0.5)
-      # If no luck, try breaking it up
-      if ( is.na(out) ) {
-        tipsplit <- strsplit(tiprn, ' ')[[1]]
-      }
-    }
-    
-    if ( is.na(out) & length(tipsplit) > 1) {
-      # Try each subset from the end
-      tipsplit <- rev(tipsplit)
-      for ( t in tipsplit ) {
-        suppressWarnings(suppressMessages(
-          out <- get_uid(t, messages = F, ask = F)[1]
-        ))
-        if ( is.null(auth) ) Sys.sleep(0.5)
-        if ( !is.na(out) ) break
-      }
-    }
-    
-    return(out)
+    cache <- validate_taxcache(cache)
+  }
+  
+  
+  
+  uid[!uid %in% unique(tab$id)]
+  uidm <- "1343364"
+  cache[uidm]
+  classification("1343364", db = "ncbi")
+  # Filter down to a single entry for each taxid and extract ranks for uids
+  tab <- tab[!duplicated(tab$id), ]
+  ranks <- setNames(tab$rank, tab$id)[uid]
+  
+  # Identify any ranks that are unranked
+  shitranki <- ranks %in% shitranks
+  uids.norank <- names(ranks)[shitranki]
+  ranks <- setNames(convert_ranks(ranks[!shitranki], knownranks), names(ranks))
+  if( length(uids.norank) > 0 ){
+    ranks.norank <- sapply(uids.norank, function(nru){
+      # Get ranks for a species that contains this uid
+      ranktable <- localcache[[which(sapply(cache, function(ut) nru %in% ut$id))[1]]]
+      # Convert the ranks to numbers
+      rankns <- convert_ranks(ranktable$rank, knownranks)
+      # Interpolate the missing shitranks
+      ranknap <- approx(x = which(!is.na(rankns)), y = rankns[!is.na(rankns)], xout = which(is.na(rankns)))
+      rankns[ranknap$x] <- ranknap$y
+      # Set cellular organisms and any other higher shitranks to Infinite
+      rankns[1:(which(!is.na(rankns))[1]-1)] <- Inf
+      # Set any remaining (i.e low end) shitranks to low values
+      rankns[is.na(rankns)] <- seq(min(rankns, na.rm = T), 0, length.out = sum(is.na(rankns)) + 1)[-1]
+      return(rankns[ranktable$id == nru])
+    })
+    ranks <- c(ranks.norank, ranks)[uid]
+  }
+  return(ranks)
+}
+
+get_taxids_from_tiptaxonomy <- function(tips, localcache, auth){
+  localcache <- if( length(localcache) > 0 ) localcache else NULL
+  message("\tParsing ", length(tips), " tip labels for taxonomy and searching against NCBI")
+  
+  # Split strings by common separators
+  tipsplit <- setNames(strsplit(tips, '[-;,~_ ]'), tips)
+  # Retain only strings that are words
+  tipsplit <- lapply(tipsplit, function(ts)  ts[grepl('^[A-Za-z][a-z]+$', ts)] )
+  # Rejoin any potential species names, retaining separate words in case incorrect
+  tipsplit.binom <- lapply(tipsplit, function(ts){
+    potspec <- paste(ts[-length(ts)], ts[-1])
+    return(potspec[grepl('^[A-Z][a-z]+ [a-z]+$', potspec)])
   })
   
-  # Drop any that failed to return
-  tipout <- tipuids[tipuids != '' & ! is.na(tipuids)]
+  # Generate unique corpora
+  taxcorpus <- unique(unlist(tipsplit))
+  taxcorpus.binom <- unique(unlist(tipsplit.binom))
+  message("\t\tFound potential taxonomy in ", sum(sapply(tipsplit, length) > 0), " tip labels, with ", 
+          length(taxcorpus), " unique taxon words and ", length(taxcorpus.binom), " unique potential bionomials")
   
-  # Return
-  message(paste("Retrieved taxon ids for", length(tipout), "tips from taxonomy in tip names"))
-  return(tipout)
+  # Set up accessory function
+  list_assign_uid_by_corpus <- function(corpus, splitlist, localcache = NULL, rank = NULL){
+    name <- if( !is.null(rank) && rank == "species") " potential binomials " else " unique taxon words "
+    if( !is.null(localcache) ){
+      locuids <- setNames(get_uid_local(corpus, localcache, rank), corpus)
+      corpleft <- corpus[is.na(locuids)]
+      locuids <- locuids[!is.na(locuids)]
+      message("\t\t\tMatched ", length(locuids), "/", length(corpus), name, "to taxids from local taxonomy cache")
+    } else {
+      corpleft <- corpus
+    }
+    remuids <- setNames(get_uid_remote(corpleft, auth, "\t\t\t"), corpleft)
+    message("\t\t\tMatched ", sum(!is.na(remuids)), "/", length(corpleft), name, "to taxids from remote taxonomy")
+    uids <- c(locuids, remuids)[corpus]
+    return(lapply(splitlist, 
+                  function(ts) return(na.omit(uids[ts])))
+    )
+  }
+  
+  # Search binomials and filter main corpus
+  if( length(taxcorpus.binom) > 0 ){
+    uidlist.binom <- list_assign_uid_by_corpus(taxcorpus.binom, tipsplit.binom, localcache, "species")
+    hasuid <- sapply(uidlist.binom, length) > 0
+    tipsplit.sub <- tipsplit[!hasuid]
+    taxcorpus.sub <- unique(unlist(tipsplit.sub))
+    message("\t\t\tFound taxids for ", sum(hasuid), " tips, ", length(tipsplit.sub), " remain with ", length(taxcorpus.sub), " unique taxon words")
+  } else {
+    uidlist.binom <- NULL
+    tipsplit.sub <- tipsplit
+    taxcorpus.sub <- taxcorpus
+  }
+  
+  # Search main corpus
+  uidlist.main <- list_assign_uid_by_corpus(taxcorpus.sub, tipsplit.sub, localcache)
+  uidlist <- c(uidlist.binom, uidlist.main)
+  message("\t\t\tFound taxids for ", sum(sapply(uidlist, length) > 0), " further tips")
+  
+  # Filter hits by rank
+  message("\t\t\tFiltering taxids by rank for each tip")
+  uidlist <- lapply(uidlist, unname)
+  uidlist[sapply(uidlist, function(x) "1343364" %in% x)]
+  
+  
+  
+  uidranks <- get_rank_from_uid(unique(unlist(uidlist)), taxlevels, taxcache, auth, "\t\t\t\t")
+  uidlist.multi <- sapply(uidlist, length) > 1
+  
+  # Finalise and return
+  out <- setNames(c(unlist(uidlist[!uidlist.multi]), 
+                    sapply(uidlist[uidlist.multi], function(pu) {
+                      ranki <- uidranks[pu]
+                      return(pu[ranki == min(ranki)][1])
+                    }))[tips], tips)
+  message("\tCompleted search, successfully found taxids for ", sum(!is.na(out)), "/", length(out), " tips labels from taxonomy")
+  return(out[!is.na(out)])
 }
 
 get_taxids_from_tipGBaccessions <- function(tips, auth){
@@ -311,28 +476,32 @@ get_taxids_from_tipGBaccessions <- function(tips, auth){
   return(gbout)
 }
 
-get_taxonomy_from_taxids <- function(taxids, taxcache, auth){
+get_taxonomy_from_taxids <- function(taxids, taxcache, auth, indent = ""){
   taxids <- as.character(taxids)
   uuids <- unique(taxids)
   
   # Extract any from taxcache
-  inlocal <- uuids[uuids %in% names(taxcache)]
   taxlocal <- list()
-  if ( !is.null(taxcache) & length(inlocal) > 0  ){
+  inlocal <- uuids[uuids %in% names(taxcache)]
+  if ( length(inlocal) > 0){
     taxlocal <- taxcache[inlocal]
-    message(paste("Taxonomy retrieved from local NCBI cache for", length(taxlocal), "unique NCBI taxids,"))
+    message(indent, "Found taxonomy from local NCBI cache for ", length(taxlocal), " unique taxids")
   }
   
   # Get from NCBI
-  uuids <- uuids[! uuids %in% inlocal]
+  uuids <- uuids[! uuids %in% names(taxlocal)]
   taxncbi <- list()
   if ( length(uuids) > 0 ){
+    message(indent, "Running remote NCBI search on ", length(uuids), " taxids...", appendLF = F)
+    start <- Sys.time()
     suppressWarnings(suppressMessages(
       taxncbi <- classification(uuids, db = "ncbi")
     ))
-    if ( is.null(auth) ) Sys.sleep(0.5)
+    stop <- Sys.time()
     taxncbi <- taxncbi[!is.na(taxncbi)]
-    message(paste("Taxonomy retrieved from remote NCBI search for", length(taxncbi), "unique NCBI taxids,"))
+    searchtime <- as.numeric(difftime(stop, start, units = "secs"))
+    message("completed in ", round(searchtime, 1), " seconds, found taxonomy for ", length(taxncbi), " taxids")
+    if ( is.null(auth) ) Sys.sleep(0.5)
   }
   
   # Concatenate
@@ -385,6 +554,20 @@ spec <- matrix(c(
 
 
 opt <- getopt(spec)
+
+#setwd("/home/thomas/work/iBioGen_postdoc/MMGdatabase/phylogeny/reftree498_project/")
+#opt$phylo <- "6_trees/6_nt_ultboot_nopart.contree"
+#opt$taxonomy <- "6_renamedata.csv"
+#opt$metadata <- opt$taxonomy
+#opt$output <- "testout.tre"
+#opt$metanames <- "locality,site,morphospecies"
+#opt$rename <- T
+#opt$taxlevels <- "order,family,subfamily,genus"
+#opt$taxonomise <- T
+#opt$taxcache <- "NCBI_taxonomy.RDS"
+#opt$auth <- "~/passwords/api_tokens/ncbi_authentication.txt"
+#opt$threads <- 6
+#opt$usencbi <- T
 
 if ( is.null(opt) | !is.null(opt$help) ){
   message(getopt(spec, usage = T))
@@ -449,7 +632,6 @@ if ( opt$taxonomise & (!opt$usencbi & is.null(opt$taxonomy))){
   stop("To taxonomise without NCBI, supply taxonomy information to --taxonomy")
 }
 
-
 # Load in tree and get tips ----------------------------------------------
 
 message(paste("Reading tree", opt$phylo))
@@ -469,14 +651,18 @@ renamelist <- list()
 
 if ( !is.null(opt$genepresence) ){
   renamelist[['genepresence']] <- parse_presence(opt$genepresence)
+  message("Successfully parsed gene presence data")
 }
 
 if ( !is.null(opt$metadata) ){
   names <- strsplit(opt$metanames, ',')[[1]]
   renamelist[['metadata']] <- parse_metadata(opt$metadata, names)
+  message("Successfully parsed metadata")
 }
 
 # Get taxonomy ------------------------------------------------------------
+
+message("Starting taxonomy operations")
 
 if ( opt$usencbi ){
   
@@ -484,6 +670,8 @@ if ( opt$usencbi ){
   taxcache <- list()
   if ( !is.null(opt$taxcache) && file.exists(opt$taxcache) ){
     taxcache <- readRDS(opt$taxcache)
+    taxcache <- validate_taxcache(taxcache, opt$taxcache)
+    message("Read supplied taxonomy cache")
   }
   
   # Load API key if present 
@@ -496,22 +684,33 @@ if ( opt$usencbi ){
   taxids <- NULL
   tipswotaxonomy <- unknowntips
   
+  message("Starting search for taxonomy for ", length(tipswotaxonomy), " tips")
+  
   # Retrieve taxids from file if present
   if ( ! is.null(opt$ncbitaxids) ){
     taxids <- get_taxids_from_file(opt$ncbitaxids, tipswotaxonomy)
+    message("Retrieved taxonomy ids for ", sum(names(taxids) %in% tipswotaxonomy), " tips from taxids file")
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% names(taxids) ]
+    newtaxcache <- update_taxcache(taxids, taxcache, opt$auth, "\t")
+    taxcache <- validate_taxcache(c(taxcache, newtaxcache), exit.text = 
+                                  "Error: discrepancy found in local taxonomy cache. This is likely due to your taxids file having an outdate taxid. Please check your taxids and start again")
   }
   
   # Retrieve taxonomy details from file if present
   if ( ! is.null(opt$taxonomy) ){
     taxonomy <- get_taxonomy_from_file(opt$taxonomy, tipswotaxonomy)
-    taxids <- append(taxids, get_taxids_from_taxonomy(taxonomy, taxcache, opt$auth))
-    tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% rownames(taxonomy) ]
+    newtaxids <- na.omit(get_taxids_from_taxonomy(taxonomy, taxcache, opt$auth))
+    taxids <- append(taxids, newtaxids)
+    message("Retrieved taxonomy ids for ", sum(names(newtaxids) %in% tipswotaxonomy), " tips from taxonomy table")
+    tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% names(taxids) ]
+    newtaxcache <- update_taxcache(unique(taxids), taxcache, opt$auth, "\t")
+    taxcache <- validate_taxcache(c(taxcache, newtaxcache), opt$taxcache, 
+                                  "Error: discrepancy found in local taxonomy cache. This is likely due to a taxonomy id merge in the NCBI data. The offending entries have been removed, please start again")
   }
   
   # If taxonomising nodes, search tips for taxonomy info if requested
-  if ( opt$taxonomise & length(tipswotaxonomy) > 0){
-    taxids <- append(taxids, get_taxids_from_tiptaxonomy(tipswotaxonomy, opt$auth))
+  if ( opt$taxonomise & length(tipswotaxonomy) > 0 ){
+    taxids <- append(taxids, get_taxids_from_tiptaxonomy(tipswotaxonomy, taxcache, opt$auth))
     tipswotaxonomy <- tipswotaxonomy[ !tipswotaxonomy %in% names(taxids) ]
     
     taxids <- append(taxids, get_taxids_from_tipGBaccessions(tipswotaxonomy))
@@ -522,7 +721,6 @@ if ( opt$usencbi ){
   gtftreturn <- get_taxonomy_from_taxids(taxids, taxcache, opt$auth)
   taxidtaxonomy <- gtftreturn[[1]]
   rownames(taxidtaxonomy) <- names(taxids)
-  taxcache <- gtftreturn[[2]]
   
   if ( exists("taxonomy") && 'morphospecies' %in% colnames(taxonomy) ){
     taxidtaxonomy <- cbind( taxonomy[rownames(taxidtaxonomy), 'morphospecies'], taxidtaxonomy )
@@ -533,6 +731,9 @@ if ( opt$usencbi ){
     taxonomy <- taxidtaxonomy
   }
   if ( ! is.null(opt$taxcache) ) {
+    newcache <- gtftreturn[[2]]
+    newcache <- newcache[!names(newcache) %in% names(taxcache)]
+    taxcache <- c(taxcache, newcache)
     saveRDS(taxcache, opt$taxcache)
   }
 
