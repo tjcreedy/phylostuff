@@ -59,9 +59,16 @@ listdescendants <- function(tree, n, nodes = T, tips = T, inc.n = F){
   return(out)
 }
 
-splits <- function(phy, label.tips = F){
+splits <- function(phy, rettype = c("all", "split"), label.tips = F, split.detailed = F, rename = F){
+  
+  rettype = match.arg(rettype)
+  if( rettype == "all" & split.detailed ){
+    message("Warning: split.detailed = TRUE is not applicable if rettype = \"all\"")
+  }
+  
   # get all node numbers
   nodes <- Ntip(phy) + 1:phy$Nnode
+  nodelabels <- if(rename | (! rename & !"node.label" %in% names(phy))) nodes else phy$node.label
   
   # get children below each node
   children <- c(
@@ -73,17 +80,26 @@ splits <- function(phy, label.tips = F){
   # make sure tip names are sorted alphabetically for future comparison
   children <- lapply(children, sort)
   
-  # convert edge table into list of node id splits
-  splits <- lapply(nodes, function(n) phy$edge[phy$edge[, 1] == n, 2])
-  
-  # retrieve tips below each node
-  splits <- lapply(splits, function(s) children[s])
-  # ensure splits are sorted alphabetically for future comparison
-  splits <- lapply(splits, function(s) s[order(unlist(lapply(s, "[[", 1)))] )
-  # set names of splits
-  names(splits) <- nodes
-  
-  return(splits)
+  if(rettype == "all"){
+    return(setNames(children[-c(1:Ntip(phy))], nodelabels))
+  } else {
+    # convert edge table into list of node id splits
+    splits <- lapply(nodes, function(n) phy$edge[phy$edge[, 1] == n, 2])
+    
+    # set names of splits
+    names(splits) <- nodelabels
+    
+    # retrieve tips below each node
+    splits <- lapply(splits, function(s){
+      # Get children
+      ch <- children[s]
+      # ensure splits are sorted alphabetically for future comparison  
+      so <- order(unlist(lapply(ch, '[[', 1)))
+      # output
+      if(split.detailed) return(list(nodes = s[so], tips = ch[so])) else return(ch[so])
+    })
+    return(splits)
+  }
 }
 
 rootdist <- function(tree, n){
@@ -175,13 +191,23 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
 }
 
 count_monophyletic_subtrees_by_group <- function(tree, group){
-  gr <- unique(group) %>% sort
-  out <- bind_cols(data.frame(group = group),
-                   sapply(group, function(g){
-                     tips <- tree$tip.labels[group == gr]
+  if( any(is.na(group)) ){
+    message("Warning: grouping variable contains NAs, no information will be returned for these")
+  }
+  gr <- unique(group) %>% sort %>% na.omit
+  out <- bind_cols(data.frame(group = gr),
+                   sapply(gr, function(g){
+                     tips <- tree$tip.label[group == g & !is.na(group)]
+                     if( length(tips) > 1){
+                       subtree <- extract.clade(tree, getMRCA(tree, tips))
+                       intips <- subtree$tip.label[!subtree$tip.label %in% tips]
+                     } else {
+                       intips <- NULL
+                     }
                      c(ntips = length(tips),
-                       nmono = find_monophyletic_subtrees(tree, tips) %>% length)
-                   }) %>% t() %>% data.frame() %>% setNames(c("ntips", "nmono")))
+                       nmono = find_monophyletic_subtrees(tree, tips) %>% length,
+                       ninsert = find_monophyletic_subtrees(tree, intips) %>% length)
+                   }) %>% t() %>% data.frame() %>% setNames(c("ntips", "nmono", "ninsert")))
   row.names(out) <- NULL
   return(out)
 }
@@ -189,14 +215,27 @@ count_monophyletic_subtrees_by_group <- function(tree, group){
 consistency_index <- function(min, obs) min/obs
 retention_index <- function(min, max, obs) (max - obs)/(max - min)
 
-calculate_taxonomic_indices <- function(tree, taxonomy){
+calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, drop.missing = F){
+  remove <- NULL
+  if( drop.missing ){
+    remove <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
+  }
+  if( !is.null(exclude) ){
+    remove <- c(remove, exclude)
+  }
+  if( length(remove) > 0 ){
+    taxonomy <- taxonomy[! tree$tip.label %in% remove]
+    tree <- drop.tip(tree, remove)
+  }
   bt <- count_monophyletic_subtrees_by_group(tree, taxonomy) %>%
     mutate(
-      TCI = consistency_index(1, nmono),
-      TRI = retention_index(1, ntips, nmono)
+      transitions = ifelse(nmono == 1, 1, ifelse(nmono < ninsert, nmono, ninsert + 1)),
+      TCI = consistency_index(1, transitions),
+      TRI = retention_index(1, ntips, transitions)
     )
-  bti <- bytaxon %>% filter(ntips > 1)
-  sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), CTCI = mean(bti$TCI), CTRI = CTRI)
+  bti <- bt %>% filter(ntips > 1)
+  sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), 
+          CTCI = mean(bti$TCI), CTRI = mean(bti$TRI))
   return(list(summary = sm,
               informative = bti,
               all = bt))
@@ -219,5 +258,19 @@ sym_diff <- function(a, b) unique(c(setdiff(a, b), setdiff(b, a)))
 
 patristic_distance <- function(tree, n1, n2){
   return(sum(tree$edge.length[tree$edge[,2] %in% sym_diff(listancestors(tree, n1, inc.n = T), listancestors(tree, n2, inc.n = T))]))
+}
+
+
+find_largest_outgroup_parent <- function(tree, tips){
+  find_monophyletic_subtrees(tree, tips) %>%
+    {.[which.max(purrr::map_dbl(., function(n){
+      listdescendants(tree, n, nodes = F) %>% length}
+      ))]}
+}
+
+root_outgroup_fuzzy <- function(tree, outgroup){
+  root(tree, node = find_largest_outgroup_parent(tree, outgroup), 
+       resolve.root = T) %>% 
+    ladderize
 }
 
