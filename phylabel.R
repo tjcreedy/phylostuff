@@ -623,6 +623,9 @@ if ( !is.null(opt$nameorder) ){
     stop("To rename with genepresence, supply table to --genepresence")
   }
 } else {
+  if ( 'species' %in% opt$taxlevels ){
+    stop("--nameorder is not specified and \'species\' is in --taxlevels. If not specified, nameorder includes \'species\' by default, so this would produce redundant names - either remove \'species\' from --taxlevels or explicitly specify --nameorder")
+  }
   opt$nameorder <- 'name'
   if ( !is.null(opt$genepresence) ) { opt$nameorder <- append(opt$nameorder, 'genepresence') }
   if ( !is.null(opt$taxonomy) | !is.null(opt$ncbitaxids) ) { opt$nameorder <- append(opt$nameorder, c('taxonomy', 'species')) }
