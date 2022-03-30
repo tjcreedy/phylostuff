@@ -257,20 +257,20 @@ mean_sd_cophenetic <- function(tree){
 sym_diff <- function(a, b) unique(c(setdiff(a, b), setdiff(b, a)))
 
 patristic_distance <- function(tree, n1, n2){
-  return(sum(tree$edge.length[tree$edge[,2] %in% sym_diff(listancestors(tree, n1, inc.n = T), listancestors(tree, n2, inc.n = T))]))
+  return(sum(tree$edge.length[tree$edge[,2] %in% sym_diff(listancestors(tree, n1, inc.n = T), 
+                                                          listancestors(tree, n2, inc.n = T))]))
 }
 
 
 find_largest_outgroup_parent <- function(tree, tips){
-  find_monophyletic_subtrees(tree, tips) %>%
-    {.[which.max(purrr::map_dbl(., function(n){
-      listdescendants(tree, n, nodes = F) %>% length}
-      ))]}
+  subtreenodes <- find_monophyletic_subtrees(tree, tips)
+  subtreelength <- lapply(subtreenodes, function(n){
+    length(listdescendants(tree, n, nodes = F))
+  })
+  return(subtreenodes[which.max(subtreelength)])
 }
 
 root_outgroup_fuzzy <- function(tree, outgroup){
-  root(tree, node = find_largest_outgroup_parent(tree, outgroup), 
-       resolve.root = T) %>% 
-    ladderize
+  return(ladderize(root(tree, node = find_largest_outgroup_parent(tree, outgroup), resolve.root = T)))
 }
 
