@@ -136,9 +136,10 @@ def parse_priorscheme(path, part):
                  f"prior scheme")
 
     # Get codon positions to use, if present
-    usepositions = sorted(list({int(p) for n, d in scheme.items() for p in d['positions']}))
-    codonpos = usepositions != ''
+    usepositions = sorted(list({p for n, d in scheme.items() for p in d['positions']}))
+    codonpos = usepositions != ['']
     sep = '_' if codonpos else ''
+    usepositions = [int(p) for p in usepositions] if codonpos else usepositions
 
     # Make lumps and info dicts
     lumps = dict()
