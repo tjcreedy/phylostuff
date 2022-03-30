@@ -5,24 +5,16 @@
 rm(list = ls())
 options(stringsAsFactors = F)
 
-# Global variables --------------------------------------------------------
-
-taxlevels <- c("subspecies","species","superspecies",
-               "subgenus","genus",
-               "infratribe","subtribe","tribe","supertribe",
-               "infrafamily","subfamily","family","superfamily",
-               "parvorder","infraorder","suborder","order","superorder","magnorder",
-               "cohort","legion",
-               "parvclass","subteclass","infraclass","subclass","class","superclass",
-               "microphylum","infraphylum","subphylum","phylum","superphylum",
-               "infrakingdom","subkingdom","kingdom","superkingdom") # From lowest to highest
-
 # Load libraries ----------------------------------------------------------
 
 suppressMessages(require(getopt))
 suppressMessages(require(geiger))
 suppressMessages(require(taxize))
 suppressMessages(require(plyr))
+
+# Global variables ----------------------------------------------------------------------------
+
+taxlevels <- readLines("https://raw.githubusercontent.com/tjcreedy/constants/main/taxlevels.txt")
 
 # Load functions ----------------------------------------------------------
 
