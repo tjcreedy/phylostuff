@@ -194,20 +194,20 @@ count_monophyletic_subtrees_by_group <- function(tree, group){
   if( any(is.na(group)) ){
     message("Warning: grouping variable contains NAs, no information will be returned for these")
   }
-  gr <- unique(group) %>% sort %>% na.omit
-  out <- bind_cols(data.frame(group = gr),
-                   sapply(gr, function(g){
-                     tips <- tree$tip.label[group == g & !is.na(group)]
-                     if( length(tips) > 1){
-                       subtree <- extract.clade(tree, getMRCA(tree, tips))
-                       intips <- subtree$tip.label[!subtree$tip.label %in% tips]
-                     } else {
-                       intips <- NULL
-                     }
-                     c(ntips = length(tips),
-                       nmono = find_monophyletic_subtrees(tree, tips) %>% length,
-                       ninsert = find_monophyletic_subtrees(tree, intips) %>% length)
-                   }) %>% t() %>% data.frame() %>% setNames(c("ntips", "nmono", "ninsert")))
+  gr <- na.omit(sort(unique(group)))
+  out <- cbind(data.frame(group = gr), 
+               t(sapply(gr, function(g){
+                 tips <- tree$tip.label[group == g & !is.na(group)]
+                 if( length(tips) > 1){
+                   subtree <- extract.clade(tree, getMRCA(tree, tips))
+                   intips <- subtree$tip.label[!subtree$tip.label %in% tips]
+                 } else {
+                   intips <- NULL
+                 }
+                 c(ntips = length(tips),
+                   nmono = length(find_monophyletic_subtrees(tree, tips)),
+                   ninsert = length(find_monophyletic_subtrees(tree, intips)))
+               })))
   row.names(out) <- NULL
   return(out)
 }
