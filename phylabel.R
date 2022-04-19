@@ -19,7 +19,7 @@ taxlevels <- readLines("https://raw.githubusercontent.com/tjcreedy/constants/mai
 # Load functions ----------------------------------------------------------
 
 read.tabular <- function(path){
-  if( grepl("\\.csv$", path) ){
+  if( grepl("\\.csv$", tolower(path)) ){
     return(read.csv(path, row.names = 1))
   } else {
     tab <- read.table(path)
