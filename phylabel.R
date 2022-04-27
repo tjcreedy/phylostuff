@@ -212,7 +212,7 @@ get_taxids_from_file <- function(path, tips){
   if( length(matchtips) > 0 ){
     taxids <- taxids[matchtips]
   } else {
-    exit(paste("Error: cannot find any rows in", path, "matching to tips on the tree"))
+    stop(paste("Error: cannot find any rows in", path, "matching to tips on the tree"))
   }
   message("\tRead ", length(taxids), " NCBI taxids matching tips on the tree in ", path)
   return(taxids)
@@ -228,7 +228,7 @@ get_taxonomy_from_file <- function(path, tips){
   if( length(matchtips) > 0 ){
     taxondata <- taxondata[matchtips, ]
   } else {
-    exit(paste("Error: cannot find any rows in", path, "matching to tips on the tree"))
+    stop(paste("Error: cannot find any rows in", path, "matching to tips on the tree"))
   }
   
   # Find taxonomy information
@@ -236,7 +236,7 @@ get_taxonomy_from_file <- function(path, tips){
   if( length(matchtax) > 0 ){
     taxondata <- taxondata[,  c('morphospecies', taxlevels)[ c('morphospecies', taxlevels) %in% colnames(taxondata) ] ]
   } else {
-    exit(paste("Error: cannot find any columns in", path, "that match to known taxonomy levels"))
+    stop(paste("Error: cannot find any columns in", path, "that match to known taxonomy levels"))
   }
   message("\tRead ", nrow(taxondata), " rows of ", ncol(taxondata), " taxonomy levels ",
           if('morphospecies' %in% colnames(taxondata)) "(including morphospecies) ",
@@ -333,12 +333,6 @@ get_rank_from_uid <- function(uid, knownranks, localcache, auth, indent){
     cache <- validate_taxcache(cache)
   }
   
-  
-  
-  uid[!uid %in% unique(tab$id)]
-  uidm <- "1343364"
-  cache[uidm]
-  classification("1343364", db = "ncbi")
   # Filter down to a single entry for each taxid and extract ranks for uids
   tab <- tab[!duplicated(tab$id), ]
   ranks <- setNames(tab$rank, tab$id)[uid]
@@ -544,22 +538,7 @@ spec <- matrix(c(
 
 # Read options and do help -----------------------------------------------
 
-
 opt <- getopt(spec)
-
-#setwd("/home/thomas/work/iBioGen_postdoc/MMGdatabase/phylogeny/reftree498_project/")
-#opt$phylo <- "6_trees/6_nt_ultboot_nopart.contree"
-#opt$taxonomy <- "6_renamedata.csv"
-#opt$metadata <- opt$taxonomy
-#opt$output <- "testout.tre"
-#opt$metanames <- "locality,site,morphospecies"
-#opt$rename <- T
-#opt$taxlevels <- "order,family,subfamily,genus"
-#opt$taxonomise <- T
-#opt$taxcache <- "NCBI_taxonomy.RDS"
-#opt$auth <- "~/passwords/api_tokens/ncbi_authentication.txt"
-#opt$threads <- 6
-#opt$usencbi <- T
 
 if ( is.null(opt) | !is.null(opt$help) ){
   message(getopt(spec, usage = T))
@@ -591,6 +570,9 @@ if ( !opt$rename &
   stop("When only taxonomising, --metadata, --genepresence, --tobycodes, --metanames, --nameorder, --taxlevels are redundant")
 }
 if ( ! is.null(opt$taxlevels) ) {
+  if ( is.null(opt$taxonomy) ){
+    stop("Error: --taxlevels supplied but no table supplied to --taxonomy! If you have one table for both metadata and taxonomy, supply it to both.")
+  }
   opt$taxlevels <- strsplit(opt$taxlevels, ",")[[1]]
   if ( ! all(opt$taxlevels %in% c('morphospecies', taxlevels)) ){
     stop("Error: unrecognised taxonomic level passed to --taxlevels")
@@ -598,7 +580,9 @@ if ( ! is.null(opt$taxlevels) ) {
     opt$taxlevels <- c('morphospecies', taxlevels)[match(opt$taxlevels, c('morphospecies', taxlevels))]
   }
 } else {
-  opt$taxlevels <- c('order', 'family')
+  if ( ! is.null(opt$taxonomy) ){
+    opt$taxlevels <- c('order', 'family')
+  }
 } 
 if ( !is.null(opt$nameorder) ){
   opt$nameorder <- strsplit(opt$nameorder, ',', fixed = T)
@@ -632,6 +616,7 @@ if ( opt$taxonomise & (!opt$usencbi & is.null(opt$taxonomy))){
 message(paste("Reading tree", opt$phylo))
 
 phy <- read.tree(opt$phylo)
+phy$tip.label <- gsub("['\"]", "", phy$tip.label)
 unknowntips <- phy$tip.label
 if ( ! is.null(opt$excludetip) ){
   unknowntips <- unknowntips[ ! grepl(opt$excludetip, unknowntips) ]
@@ -650,15 +635,23 @@ if ( !is.null(opt$genepresence) ){
 }
 
 if ( !is.null(opt$metadata) ){
+  if ( is.null(opt$metanames) ){
+    stop("Error: table supplied to --metadata but no --metanames given.")
+  }
   names <- strsplit(opt$metanames, ',')[[1]]
   renamelist[['metadata']] <- parse_metadata(opt$metadata, names)
   message("Successfully parsed metadata")
+} else {
+  if ( ! is.null(opt$metanames) ){
+    stop("Error: --metanames supplied but no table given to --metadata.")
+  }
 }
 
 # Get taxonomy ------------------------------------------------------------
 
-message("Starting taxonomy operations")
-
+if( ! is.null(opt$taxlevels) ){
+  message("Starting taxonomy operations")
+}
 if ( opt$usencbi ){
   
   # Get cache if present 
@@ -782,11 +775,16 @@ if ( opt$rename ){
     l <- l[phy$tip.label]
     return(l)
   }) 
-  renamelist <- do.call('cbind', renamelist)
-  renamelist <- cbind(phy$tip.label, renamelist)
-  phy$tip.label <- apply(renamelist, 1, function(x) paste(x[!is.na(x) & x != ''], collapse = '~'))
+  if ( 'name' %in% opt$nameorder ){
+    renamelist[['name']] <- setNames(phy$tip.label, phy$tip.label)
+  }
+  renamelist <- do.call('cbind', renamelist)[,opt$nameorder]
+  row.names(renamelist) <- phy$tip.label
+  renames <- apply(renamelist, 1, function(x) paste(x[!is.na(x) & x != ''], collapse = '~'))
+  phy$tip.label <- ifelse(renames == "", phy$tip.label, renames)
 }
 
 # Output ------------------------------------------------------------------
+
 write.tree(phy, opt$output)
 message(paste("Completed successfully, tree written to",  opt$output))
