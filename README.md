@@ -30,8 +30,13 @@ Download the specific script you need or git clone the repository. The R scripts
 date installation of R. 
 
 The CLI R scripts are designed for Linux although will probably work on Mac. They are untested on 
-Windows. They require the R libraries ape, getopt, geiger, taxize and plyr. phylofuncs.R may 
-require other libraries.
+Windows. They require the R libraries ape, getopt, geiger, taxize and plyr, you can install these
+easily by running:
+```
+Rscript -e 'x<-c("ape", "getopt", "geiger", "taxize", "plyr");install.packages(x[!x %in% installed.packages()[,"Package"]], repos = "https://cloud.r-project.org")'
+```
+
+phylofuncs.R may require other libraries.
 
 ### Automated installation on Ubuntu Linux
 
@@ -61,6 +66,3 @@ bash uninstall.sh
 # or
 sudo bash uninstall.sh 
 ```
-
-
-
