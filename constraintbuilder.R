@@ -56,7 +56,7 @@ taxonomy <- cbind(id=taxonomy[, 1], taxonomy[, taxlevels[taxlevels %in% names(ta
 
 if( !is.null(opt$subset) ){
   exclude <- readLines(opt$subset)
-  taxonomy <- taxonomy[taxonomy$id %in% subset]
+  taxonomy <- taxonomy[taxonomy$id %in% exclude, ]
 }
 
 # Find set of ids for each tip on the template ------------------------------------------------
