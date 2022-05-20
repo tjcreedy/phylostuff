@@ -85,6 +85,11 @@ output <- template
 for(tip in names(tiplevels)){
   # Pull ids
   ids <- tipids[[tip]]
+  if( length(ids) == 0){
+    message("Warning: the tip ", tip, " has no matching ids in the taxonomy. This tip will be pruned from the constraint")
+    output <- drop.tip(output, tip)
+    next
+  }
   # Remove any already used
   ids <- ids[! ids %in% usedids]
   if( length(ids) == 0 ){
