@@ -20,7 +20,19 @@ and/or direction-based partitions in RAxML or nexus formats
 **grafttree.R** grafts one phylogeny to a specified node in a host phylogeny with Open Tree of 
 Life node IDs
 
+**constraintbuilder.R** builds a constraint phylogeny from a template phylogeny of taxonomic levels
+and a taxonomy table. Nested taxonomic levels can be used within the template, e.g. 
+`(Mammalia, Metazoa)`, which will resolve into 
+`((mammal1, mammal2), (nonmammalmetazoa1, nonmammalmetazoa2))` to easily set one sub-taxon to be 
+sister to all other sub taxa in a given clade.
+
+**taxonomicindices.R** computes the taxonomic retention and consistency indices for a given 
+phylogeny and taxonomy table
+
+**unresolver.R** unresolves nodes in a phylogeny according to a support threshold
+
 **phylofuncs.R** provides a variety of R functions for working with phylogenetic trees in R
+
 
 All of the above scripts apart from phylofuncs.R are designed for CLI usage.
 
