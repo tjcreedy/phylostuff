@@ -168,7 +168,7 @@ if( ! is.null(opt$exclude) ){
 phy <- read.tree(opt$phylogeny)
 taxonomy <- read.csv(opt$taxonomy)
 
-taxonomy <- taxonomy[taxonomy[,1] %in% phy$tip.label, opt$taxlevel]
+taxonomy <- taxonomy[match(phy$tip.label, taxonomy[,1]), opt$taxlevel]
 if( is.null(taxonomy) ) { stop("Error: supplied taxlevel is not present in the taxonomy table") }
 if( length(taxonomy) < Ntip(phy) ) { stop("Error: taxonomy table is missing tip labels from the phylogeny, or column one is not tip labels") }
 
