@@ -27,7 +27,7 @@ taxlevels <- readLines("https://raw.githubusercontent.com/tjcreedy/constants/mai
 
 spec <- matrix(c(
   'help'       , 'h', 0, "logical"  , "show this helpful message",
-  'constraint' , 'c', 1, "character", "either the path to a phylogeny, or a newick tree as a character string",
+  'constraint' , 'c', 1, "character", "either the path to a phylogeny, or a newick tree as a quoted character string",
   'taxonomy'   , 'y', 1, "character", "path to a taxonomy table to search for tips matching the taxa in the constraint",
   'subset'     , 's', 2, "character", "path to a text file listing tips to use",
   'output'     , 'o', 1, "character", "path to write the output constraint"),
@@ -87,7 +87,7 @@ for(tip in names(tiplevels)){
   ids <- tipids[[tip]]
   # Remove any already used
   ids <- ids[! ids %in% usedids]
-  if( length(ids) == 0){
+  if( length(ids) == 0 ){
     next
   }
   # Add to used
@@ -95,9 +95,8 @@ for(tip in names(tiplevels)){
   # Make polytomy
   tiptree <- read.tree(text = paste0("(", paste(ids, collapse=","), ");"))
   # Graft to template
-  output <- bind.tree(output, tiptree, which(template$tip.label == tip))
+  output <- bind.tree(output, tiptree, which(output$tip.label == tip))
 }
-
 
 # Output --------------------------------------------------------------------------------------
 
