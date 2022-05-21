@@ -70,7 +70,7 @@ unresolve <- function(phy, nodes){
     return(phy)
   }
   
-  unresolve_nodes(phy, nodes){
+  unresolve_nodes <- function(phy, nodes){
     # Because unresolving nodes will keep changing the node numbers on the tree, define nodes 
     # instead by their children
     unresolve <- lapply(nodes, function(n){
