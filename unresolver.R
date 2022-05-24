@@ -49,23 +49,26 @@ listdescendants <- function(tree, n, nodes = T, tips = T, inc.n = F){
 
 unresolve <- function(phy, nodes){
   unresolve_node <- function(phy, n){
+    # If there are node names, get for later reference, otherwise use "NA"
+    nodenames <- if( "node.label" %in% names(phy) ) phy$node.label else "NA"
     # Get the branch length above the node and add it to the branches below, to preserve total 
     # tip heights
     heightabove <- phy$edge.length[phy$edge[,2] == n]
     phy$edge.length[phy$edge[,1] == n] <- phy$edge.length[phy$edge[,1] == n] + heightabove
-    # Extract the clade from the node, leaving behind one or more branches named "NA"
+    # Extract the clade from the node, leaving behind one or more branches to tips names with 
+    # the previous node label
     graft <- extract.clade(phy, n)
     phy <- drop.tip(phy, graft$tip.label, trim.internal = F)
     # Find the new number of this node in the pruned tree, and that of its parent
-    newnode <- if( sum(phy$tip.label == "NA") == 1 ){
-      which(phy$tip.label == "NA")
+    newnode <- if( sum(phy$tip.label %in% nodenames) == 1 ){
+      which(phy$tip.label %in% nodenames)
     } else {
-      getMRCA(phy, phy$tip.label[phy$tip.label == "NA"])
+      getMRCA(phy, phy$tip.label[phy$tip.label %in% nodenames])
     }
     parent <- phy$edge[,1][phy$edge[,2] == newnode]
-    # Bind the extracted clade to the parent, and remove all the "NA" branches
+    # Bind the extracted clade to the parent, and remove all the leftover branches from prior drop
     phy <- bind.tree(phy, graft, parent)
-    phy <- drop.tip(phy, "NA")
+    phy <- drop.tip(phy, phy$tip.label[phy$tip.label %in% nodenames])
     
     return(phy)
   }
@@ -77,7 +80,7 @@ unresolve <- function(phy, nodes){
       phy$tip.label[listdescendants(phy, n, nodes = F, tips = T, inc.n = F)]})
     
     for(tips in unresolve){
-      phy <- unresolve_node(phy, getMRCA(tips))
+      phy <- unresolve_node(phy, getMRCA(phy, tips))
     }
     
     return(phy)
@@ -90,8 +93,7 @@ unresolve <- function(phy, nodes){
   }
 }
 
-
-unresolve_by_support <- function(phy, threshold = 1, 
+unresolve_by_support <- function(phy, threshold, 
                                  support = NULL, supporti = NULL, splitchar = "/", na.keep = T){
   
   # If reading support values from node labels, separate the values out if multiple supports, and in
@@ -137,8 +139,8 @@ spec <- matrix(c(
   'threshold' , 't', 1, "numeric"  , "support threshold below which nodes should be unresolved",
   'supportsep', 's', 2, "character", "if the nodes contain multiple support values, how are they separated",
   'supporti'  , 'i', 2, "numeric"  , "if the nodes contain multiple support values, which one should be used?",
-  'output'    , 'o', 1, "character", "path to write the unresolved tree",
-   byrow = T, ncol = 5))
+  'output'    , 'o', 1, "character", "path to write the unresolved tree"),
+   byrow = T, ncol = 5)
 
 # Read options and do help -----------------------------------------------
 
@@ -148,7 +150,6 @@ if ( !is.null(opt$help) ){
   cat(getopt(spec, usage = T))
   q(status = 1)
 }
-
 
 # Do unresolving ------------------------------------------------------------------------------
 

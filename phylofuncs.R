@@ -304,7 +304,7 @@ unresolve <- function(phy, nodes){
       phy$tip.label[listdescendants(phy, n, nodes = F, tips = T, inc.n = F)]})
     
     for(tips in unresolve){
-      phy <- unresolve_node(phy, getMRCA(tips))
+      phy <- unresolve_node(phy, getMRCA(phy, tips))
     }
     
     return(phy)
