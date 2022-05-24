@@ -155,6 +155,11 @@ if ( !is.null(opt$help) ){
   q(status = 1)
 }
 
+# Load in data -----------------------------------------------------------
+
+phy <- read.tree(opt$phylogeny)
+taxonomy <- read.csv(opt$taxonomy)
+
 # Set defaults -----------------------------------------------------------
 
 if( ! is.null(opt$exclude) ){
@@ -163,10 +168,8 @@ if( ! is.null(opt$exclude) ){
   if( length(missing) > 0 ) { stop("Error: one or more members of the exclusion list is not in the phylogeny:", paste0('"', missing, '"', collapse = ', ')) }
 }
 
-# Load in data -----------------------------------------------------------
 
-phy <- read.tree(opt$phylogeny)
-taxonomy <- read.csv(opt$taxonomy)
+# Filter taxonomy -----------------------------------------------------------------------------
 
 taxonomy <- taxonomy[match(phy$tip.label, taxonomy[,1]), opt$taxlevel]
 if( is.null(taxonomy) | is.data.frame(taxonomy) && ncol(taxonomy) == 0 ) { 
