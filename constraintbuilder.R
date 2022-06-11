@@ -37,6 +37,9 @@ spec <- matrix(c(
 
 opt <- getopt(spec)
 
+opt$constraint = "(((Lebiini+Odacanthini+Orthogoniinae),Carabidae),Dytiscidae,Gyrinidae,Hygrobiidae)" 
+opt$taxonomy = "~/work/iBioGen_postdoc/MMGdatabase/SITE-100_Mitogenome_Metadata_2022-06-11.csv"
+
 if ( !is.null(opt$help) ){
   cat(getopt(spec, usage = T))
   q(status = 1)
@@ -62,27 +65,56 @@ if( !is.null(opt$subset) ){
 # Find set of ids for each tip on the template ------------------------------------------------
 
 # Get info
-tipinfo <- setNames(lapply(template$tip.label, function(tip){
-  tiplocations <- which(taxonomy == tip, arr.ind = T)
-  if( length(unique(tiplocations[,2])) > 1 ){
-    message("Warning: the tip ", tip, " is found in multiple taxonomic levels, taking ids with the most frequent taxonomic grade only")
-    tipfreqs <- table(tiplocations[,2])
-    tiplocations <- tiplocations[tiplocations[,2] == names(tipfreqs)[which.max(tipfreqs)], ]
-  }
-  list(level = unique(tiplocations[,2]),
-       ids = taxonomy$id[tiplocations[,1]])
-}), template$tip.label)
+#tip = template$tip.label[1]
+taxinfo <- do.call(c, lapply(template$tip.label, function(tip){
+  taxa <- strsplit(tip, "\\+")[[1]]
+  setNames(lapply(taxa, function(taxon){
+    taxonlocations <- which(taxonomy == taxon, arr.ind = T)
+    if( length(unique(taxonlocations[,2])) > 1 ){
+      message("Warning: the tip ", tip, " is found in multiple taxonomic levels, taking ids with the most frequent taxonomic grade only")
+      taxonfreqs <- table(taxonlocations[,2])
+      taxonlocations <- tiplocations[tiplocations[,2] == names(tipfreqs)[which.max(tipfreqs)], ]
+    }
+    list(level = unique(taxonlocations[,2]),
+         ids = taxonomy$id[taxonlocations[,1]])
+  }), taxa)
+}))
+
+# Check for duplicate taxa
+taxcounts <- table(names(taxinfo))
+if( any(taxcounts > 1) ){
+  stop("there are duplicated taxon names in the constraint")
+}
 
 # Separate out into tips and levels
 
-tipids <- lapply(tipinfo, "[[", "ids")
-tiplevels <- sort(sapply(tipinfo, "[[", "level"))
+ids <- lapply(taxinfo, "[[", "ids")
+levels <-sapply(taxinfo, "[[", "level")
+
+# Filter out ids in higher levels present in lower levels ------------------------------------
+
+levels <- rev(sort(levels))
+for( i in seq_along(levels[-1]) ){
+  taxon <- names(levels)[i]
+  lowertaxa <- names(levels)[(i+1):length(levels)]
+  taxonids <- ids[[taxon]]
+  ids[[taxon]] <- taxonids[ ! taxonids %in% unlist(ids[lowertaxa]) ]
+}
+
+
+# Build tip level id list ---------------------------------------------------------------------
+
+tipids <- setNames(lapply(template$tip.label, function(tip){
+  taxa <- strsplit(tip, "\\+")[[1]]
+  unname(unlist(ids[taxa]))
+}), template$tip.label)
+
 
 # Build output constraint from lowest levels up ----------------------------------------------
 
 usedids <- c()
 output <- template
-for(tip in names(tiplevels)){
+for(tip in names(tipids)){
   # Pull ids
   ids <- tipids[[tip]]
   if( length(ids) == 0){
@@ -90,13 +122,6 @@ for(tip in names(tiplevels)){
     output <- drop.tip(output, tip)
     next
   }
-  # Remove any already used
-  ids <- ids[! ids %in% usedids]
-  if( length(ids) == 0 ){
-    next
-  }
-  # Add to used
-  usedids <- c(usedids, ids)
   # Make polytomy
   tiptree <- read.tree(text = paste0("(", paste(ids, collapse=","), ");"))
   # Graft to template
@@ -104,5 +129,5 @@ for(tip in names(tiplevels)){
 }
 
 # Output --------------------------------------------------------------------------------------
-
+write.tree(output, "testout.tre")
 write.tree(output, opt$output)

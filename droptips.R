@@ -20,8 +20,7 @@ suppressMessages(require(ape))
 spec <- matrix(c(
   'help'   , 'h', 0, "logical",
   'phylogeny', 'p', 1, "character",
-  'tips'   , 't', 1, "character",
-  'output' , 'o', 2, "character"
+  'tips'   , 't', 1, "character"
 ), byrow = T, ncol = 4)
 
 # Read options and do help -----------------------------------------------
