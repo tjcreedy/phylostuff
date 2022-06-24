@@ -37,9 +37,6 @@ spec <- matrix(c(
 
 opt <- getopt(spec)
 
-opt$constraint = "(((Lebiini+Odacanthini+Orthogoniinae),Carabidae),Dytiscidae,Gyrinidae,Hygrobiidae)" 
-opt$taxonomy = "~/work/iBioGen_postdoc/MMGdatabase/SITE-100_Mitogenome_Metadata_2022-06-11.csv"
-
 if ( !is.null(opt$help) ){
   cat(getopt(spec, usage = T))
   q(status = 1)
@@ -129,5 +126,5 @@ for(tip in names(tipids)){
 }
 
 # Output --------------------------------------------------------------------------------------
-write.tree(output, "testout.tre")
+
 write.tree(output, opt$output)
