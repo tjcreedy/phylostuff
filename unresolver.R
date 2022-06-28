@@ -48,7 +48,9 @@ listdescendants <- function(tree, n, nodes = T, tips = T, inc.n = F){
 }
 
 unresolve <- function(phy, nodes){
+  # nodes = unnodes
   unresolve_node <- function(phy, n){
+    # n = node
     # If there are node names, get for later reference, otherwise use "NA"
     nodenames <- if( "node.label" %in% names(phy) ) phy$node.label else "NA"
     # Get the branch length above the node and add it to the branches below, to preserve total 
@@ -69,20 +71,27 @@ unresolve <- function(phy, nodes){
     # Bind the extracted clade to the parent, and remove all the leftover branches from prior drop
     phy <- bind.tree(phy, graft, parent)
     phy <- drop.tip(phy, phy$tip.label[phy$tip.label %in% nodenames])
-    
     return(phy)
   }
   
   unresolve_nodes <- function(phy, nodes){
     # Because unresolving nodes will keep changing the node numbers on the tree, define nodes 
     # instead by their children
-    unresolve <- lapply(nodes, function(n){
+    unresolve.tips <- lapply(nodes, function(n){
       phy$tip.label[listdescendants(phy, n, nodes = F, tips = T, inc.n = F)]})
     
-    for(tips in unresolve){
+    # Rename the nodes with unique ids, storing the original labels
+    # Because if there are duplicate node labels, when tips are getting trimmed with 
+    # drop.tip(trim.internal = F), node labels will end up as tip labels and then there'll be errors
+    # in identifying the right place to graft
+    nlreplace <- data.frame(inp = phy$node.label,
+                            rep = paste0("n", sprintf("%03d", Ntip(phy) + (1:phy$Nnode))))
+    phy$node.label <- nlreplace$rep
+    for(tips in unresolve.tips){
       phy <- unresolve_node(phy, getMRCA(phy, tips))
     }
-    
+    # Return the input labels of the remaining nodes
+    phy$node.label <- setNames(nlreplace$inp, nlreplace$rep)[phy$node.label]
     return(phy)
   }
   
@@ -93,9 +102,10 @@ unresolve <- function(phy, nodes){
   }
 }
 
+
 unresolve_by_support <- function(phy, threshold, 
                                  support = NULL, supporti = NULL, splitchar = "/", na.keep = T){
-  
+  # threshold = opt$threshold; supporti = opt$supporti; splitchar = opt$supportsep; support = NULL; na.keep = T
   # If reading support values from node labels, separate the values out if multiple supports, and in
   # either case check that they are coercable into numerics
   if ( is.null(support) ){
@@ -137,10 +147,11 @@ spec <- matrix(c(
   'help'      , 'h', 0, "logical"  , "show this helpful message",
   'phylogeny' , 'p', 1, "character", "path to a phylogeny to unresolve",
   'threshold' , 't', 1, "numeric"  , "support threshold below which nodes should be unresolved",
+  'output'    , 'o', 1, "character", "path to write the unresolved tree",
   'supportsep', 's', 2, "character", "if the nodes contain multiple support values, how are they separated",
   'supporti'  , 'i', 2, "numeric"  , "if the nodes contain multiple support values, which one should be used?",
-  'output'    , 'o', 1, "character", "path to write the unresolved tree"),
-   byrow = T, ncol = 5)
+  'keepbl'    , 'k', 2, "logical"  , "keep branch lengths, total tip height will be maintained but patristic distances will not, not recommended"
+  ), byrow = T, ncol = 5)
 
 # Read options and do help -----------------------------------------------
 
@@ -154,5 +165,12 @@ if ( !is.null(opt$help) ){
 # Do unresolving ------------------------------------------------------------------------------
 
 phy <- read.tree(opt$phylogeny)
+
 phy <- unresolve_by_support(phy, opt$threshold, supporti = opt$supporti, splitchar = opt$supportsep)
+
+if ( is.null(opt$keepbl) ){
+  phy$edge.length <- NULL
+}
+
 write.tree(phy, opt$output)
+
