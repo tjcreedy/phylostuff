@@ -146,7 +146,9 @@ unresolve_by_support <- function(phy, threshold,
 spec <- matrix(c(
   'help'      , 'h', 0, "logical"  , "show this helpful message",
   'phylogeny' , 'p', 1, "character", "path to a phylogeny to unresolve",
-  'threshold' , 't', 1, "numeric"  , "support threshold below which nodes should be unresolved",
+  'nodes'     , 'n', 2, "character", "comma separated list of node labels to unresolve",
+  'leaves'    , 'l', 2, "character", "comma separated list of tip labels, the MRCA of which will be unresolved",
+  'threshold' , 't', 2, "numeric"  , "support threshold below which nodes should be unresolved",
   'output'    , 'o', 1, "character", "path to write the unresolved tree",
   'supportsep', 's', 2, "character", "if the nodes contain multiple support values, how are they separated",
   'supporti'  , 'i', 2, "numeric"  , "if the nodes contain multiple support values, which one should be used?",
@@ -162,11 +164,48 @@ if ( !is.null(opt$help) ){
   q(status = 1)
 }
 
+if ( sum(sapply(opt[c("nodes", "leaves", "threshold")], is.null)) != 2 ){
+  stop("supply (only) one of -n/--nodes, -l/--leaves or t/--threshold")
+}
+
 # Do unresolving ------------------------------------------------------------------------------
 
 phy <- read.tree(opt$phylogeny)
 
-phy <- unresolve_by_support(phy, opt$threshold, supporti = opt$supporti, splitchar = opt$supportsep)
+if ( !is.null(opt$nodes) ){
+  if ( is.null(phy$node.label) ){
+    stop("phylogeny does not have node labels")
+  }
+  nodes <- strsplit(opt$nodes, ",")[[1]]
+  unnodes <- unlist(lapply(nodes, function(n) which(phy$node.label == n))) + Ntip(phy)
+  if ( length(unnodes) > length(nodes) ){
+    message("Warning: node labels in the phylogeny are not unique and some supplied node labels ",
+            "match more than one node")
+  } else if ( length(unnodes) == 0 ){
+    stop("none of the supplied node labels were found in the phylogeny")
+  } else if ( length(unnodes) < length(nodes) ){
+    message("Warning: some of the supplied node labels not found in phylogeny, these will be ignored")
+  }
+  phy <- unresolve(phy, unnodes)
+} else if ( !is.null(opt$leaves) ){
+  tips <- strsplit(opt$leaves, ",")[[1]]
+  if( length(tips) == 1){
+    stop("only one tip supplied, no unresolving to do")
+  }
+  tipi <- unlist(lapply(tips, function(t) which(phy$tip.label == t)))
+  if ( length(tipi) > length(tips) ){
+    message("Warning: tip labels in the phylogeny are not unique and some supplied tip labels ",
+            "match more than one node")
+  } else if ( length(tipi) == 0 ){
+    stop("none of the supplied tip labels were found in the phylogeny")
+  } else if ( length(tipi) < length(tips) ){
+    message("Warning: some of the supplied tip labels not found in phylogeny, these will be ignored")
+  }
+  unnode <- getMRCA(phy, phy$tip.label[tipi])
+  phy <- unresolve(phy, unnode)
+} else if ( !is.null(opt$threshold) ){
+  phy <- unresolve_by_support(phy, opt$threshold, supporti = opt$supporti, splitchar = opt$supportsep)
+}
 
 if ( is.null(opt$keepbl) ){
   phy$edge.length <- NULL
