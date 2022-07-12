@@ -139,4 +139,4 @@ if( length(oginphy) == 0 )
 if( length(oginphy) < length(outgroup))
   message("Warning: not all outgroup tips in phylogeny")
 
-write.tree(root_outgroup_fuzzy(phy, oginphy))
+write.tree(root_outgroup_fuzzy(phy, oginphy, ignore = opt$ignore))
