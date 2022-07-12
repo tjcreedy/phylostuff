@@ -174,8 +174,6 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
     currtips <- listdescendants(tree = tree, n  = start, nodes = F, tip = T, inc.n = F)
   }
   
-  currtips
-  
   intips <- tree$tip.label[currtips] %in% tips
   
   if(all(intips)){
@@ -261,17 +259,29 @@ patristic_distance <- function(tree, n1, n2){
                                                           listancestors(tree, n2, inc.n = T))]))
 }
 
-
-find_largest_outgroup_parent <- function(tree, tips){
+find_largest_outgroup_parent <- function(tree, tips, ignore = NULL){
+  if( ! is.null(ignore) ){
+    fulltree <- tree 
+    tree <- drop.tip(tree, tree$tip.label[grepl(ignore, tree$tip.label)])
+  }
   subtreenodes <- find_monophyletic_subtrees(tree, tips)
-  subtreelength <- lapply(subtreenodes, function(n){
+  if( length(subtreenodes)  == length(tips)) {
+    stop("no monophyletic subtrees comprising >1 of the supplied tips found. Do you have extra tips that should be ignored?")
+  }
+  subtreelength <- sapply(subtreenodes, function(n){
     length(listdescendants(tree, n, nodes = F))
   })
-  return(subtreenodes[which.max(subtreelength)])
+  lop <- subtreenodes[which.max(subtreelength)]
+  if( ! is.null(ignore) ){
+    lop <- getMRCA(fulltree, tree$tip.label[listdescendants(tree, lop, nodes = F, tips = T)])
+  }
+  return(lop)
 }
 
-root_outgroup_fuzzy <- function(tree, outgroup){
-  return(ladderize(root(tree, node = find_largest_outgroup_parent(tree, outgroup), resolve.root = T)))
+root_outgroup_fuzzy <- function(tree, outgroup, ignore = NULL){
+  return(ladderize(root(tree, 
+                        node = find_largest_outgroup_parent(tree, outgroup, ignore), 
+                        resolve.root = T)))
 }
 
 unresolve <- function(phy, nodes){
