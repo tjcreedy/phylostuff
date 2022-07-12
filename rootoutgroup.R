@@ -61,7 +61,7 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
   } else {
     currtips <- listdescendants(tree = tree, n  = start, nodes = F, tip = T, inc.n = F)
   }
-  
+
   intips <- tree$tip.label[currtips] %in% tips
   
   if(all(intips)){
@@ -75,6 +75,7 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
     return(unlist(sapply(chs, function(ch) find_monophyletic_subtrees(tree, tips, start = ch))))
   }
 }
+
 
 find_largest_outgroup_parent <- function(tree, tips, ignore = NULL){
   if( ! is.null(ignore) ){
@@ -118,9 +119,6 @@ spec <- matrix(c(
 # Read options and do help -----------------------------------------------
 
 opt <- getopt(spec)
-
-opt$phylogeny <- "~/work/iBioGen_postdoc/CanopyRedux/2022_placement_trial/CCCP_add_aa.raxml.lastTree.TMP"
-opt$outgroup <- "~/work/iBioGen_postdoc/CanopyRedux/2022_placement_trial/outgroup.txt"
 
 if ( !is.null(opt$help) ){
   cat(getopt(spec, usage = T))
