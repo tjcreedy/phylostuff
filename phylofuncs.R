@@ -237,7 +237,7 @@ calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL,
   if( !is.null(exclude) ){
     bt <- bt[! bt$group %in% exclude, ]
   }
-  bti <- bt %>% filter(ntips > 1)
+  bti <- bt[bt$ntips > 1, ]
   sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), 
           CTCI = mean(bti$TCI), CTRI = mean(bti$TRI))
   return(list(summary = sm,
