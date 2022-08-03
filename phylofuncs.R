@@ -231,11 +231,11 @@ calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL,
     tree <- drop.tip(tree, todrop)
   }
   bt <- count_monophyletic_subtrees_by_group(tree, taxonomy)
-  bt$transitions <- ifelse(nmono == 1, 1, ifelse(nmono < ninsert, nmono, ninsert + 1))
-  bt$TCI <- consistency_index(1, transitions)
-  bt$TRI <- retention_index(1, ntips, transitions)
+  bt$transitions <- ifelse(bt$nmono == 1, 1, ifelse(bt$nmono < bt$ninsert, bt$nmono, bt$ninsert + 1))
+  bt$TCI <- consistency_index(1, bt$transitions)
+  bt$TRI <- retention_index(1, bt$ntips, bt$transitions)
   if( !is.null(exclude) ){
-    bt <- bt[! bt$group %in% exclude]
+    bt <- bt[! bt$group %in% exclude, ]
   }
   bti <- bt %>% filter(ntips > 1)
   sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), 

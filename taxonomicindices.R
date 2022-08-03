@@ -184,7 +184,7 @@ spec <- matrix(c(
   'taxonomy' , 't', 1, "character", "path to a taxonomy csv with tree tip labels in the first column and taxonomic levels as other columns",
   'taxlevel' , 'l', 1, "character", "the taxonomic level for which to calculate an index",
   'drop'     , 'd', 2, "character", "a comma-separated list of tip labels to drop from the tree before monophyly assessment - not recommended",
-  'exclude'  , 'e', 2, "character", "a comma-separated list of tip labels to exclude from reporting (but include in monophyly assesment), e.g. an outgroup",
+  'exclude'  , 'e', 2, "character", "a comma-separated list of taxa of the given level to exclude from reporting (but include in monophyly assesment), e.g. an outgroup",
   'output'   , 'o', 2, "character", "if desired, a file path to which a CSV of individual taxon indices will be written for taxa with >1 representative",
   'alloutput', 'a', 2, "character", "if desired, a file path to which a CSV of individual taxon indices will be written for all taxa"
 ), byrow = T, ncol = 5)
