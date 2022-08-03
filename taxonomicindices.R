@@ -104,26 +104,68 @@ consistency_index <- function(min, obs) min/obs
 
 retention_index <- function(min, max, obs) (max - obs)/(max - min)
 
-calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, drop.missing = F){
-  remove <- NULL
+
+calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, 
+                                        drop.missing = F, drop.tips = NULL){
+  # taxonomy = vector of taxon names corresponding to the tips
+  # exclude = do not include these taxa in the outputs, but retain them for calculating monophyly
+  # drop.missing = drop tips where taxonomy is NA from the tree prior to calculations
+  # drop.tips = drop a given list of tip names from the tree prior to calculations
+  todrop <- NULL
   if( drop.missing ){
-    remove <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
+    todrop <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
   }
-  if( !is.null(exclude) ){
-    remove <- unique(c(remove, exclude))
+  if( !is.null(drop.tips) ){
+    todrop <- c(remove, drop.tips)
   }
-  if( length(remove) > 0 ){
-    taxonomy <- taxonomy[! tree$tip.label %in% remove]
-    tree <- drop.tip(tree, remove)
+  if( length(todrop) > 0 ){
+    taxonomy <- taxonomy[! tree$tip.label %in% todrop]
+    tree <- drop.tip(tree, todrop)
   }
   bt <- count_monophyletic_subtrees_by_group(tree, taxonomy)
-  bt$transitions <- with(bt, ifelse(nmono == 1, 1, ifelse(nmono < ninsert, nmono, ninsert + 1)))
-  bt$TCI = consistency_index(1, bt$transitions)
-  bt$TRI = retention_index(1, bt$ntips, bt$transitions)
-  bti <- bt[bt$ntips > 1, ]
+  bt$transitions <- ifelse(nmono == 1, 1, ifelse(nmono < ninsert, nmono, ninsert + 1))
+  bt$TCI = consistency_index(1, transitions)
+  bt$TRI = retention_index(1, ntips, transitions)
+  if( !is.null(exclude) ){
+    bt <- bt[! bt$group %in% exclude]
+  }
+  bti <- bt %>% filter(ntips > 1)
   sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), 
           CTCI = mean(bti$TCI), CTRI = mean(bti$TRI))
-  return(list(summary = round(sm, 3),
+  return(list(summary = sm,
+              informative = bti,
+              all = bt))
+}
+
+
+calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, 
+                                        drop.missing = F, drop.tips = NULL){
+  # taxonomy = vector of taxon names corresponding to the tips
+  # exclude = do not include these taxa in the outputs, but retain them for calculating monophyly
+  # drop.missing = drop tips where taxonomy is NA from the tree prior to calculations
+  # drop.tips = drop a given list of tip names from the tree prior to calculations
+  todrop <- NULL
+  if( drop.missing ){
+    todrop <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
+  }
+  if( !is.null(drop.tips) ){
+    todrop <- c(remove, drop.tips)
+  }
+  if( length(todrop) > 0 ){
+    taxonomy <- taxonomy[! tree$tip.label %in% todrop]
+    tree <- drop.tip(tree, todrop)
+  }
+  bt <- count_monophyletic_subtrees_by_group(tree, taxonomy)
+  bt$transitions <- ifelse(nmono == 1, 1, ifelse(nmono < ninsert, nmono, ninsert + 1))
+  bt$TCI <- consistency_index(1, transitions)
+  bt$TRI <- retention_index(1, ntips, transitions)
+  if( !is.null(exclude) ){
+    bt <- bt[! bt$group %in% exclude]
+  }
+  bti <- bt %>% filter(ntips > 1)
+  sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), 
+          CTCI = mean(bti$TCI), CTRI = mean(bti$TRI))
+  return(list(summary = sm,
               informative = bti,
               all = bt))
 }
@@ -141,7 +183,8 @@ spec <- matrix(c(
   'phylogeny', 'p', 1, "character", "path to a phylogeny to calculate tRI for",
   'taxonomy' , 't', 1, "character", "path to a taxonomy csv with tree tip labels in the first column and taxonomic levels as other columns",
   'taxlevel' , 'l', 1, "character", "the taxonomic level for which to calculate an index",
-  'exclude'  , 'x', 2, "character", "a comma-separated list of tip labels to exclude from index calculation, e.g. an outgroup",
+  'drop'     , 'd', 2, "character", "a comma-separated list of tip labels to drop from the tree before monophyly assessment - not recommended",
+  'exclude'  , 'e', 2, "character", "a comma-separated list of tip labels to exclude from reporting (but include in monophyly assesment), e.g. an outgroup",
   'output'   , 'o', 2, "character", "if desired, a file path to which a CSV of individual taxon indices will be written for taxa with >1 representative",
   'alloutput', 'a', 2, "character", "if desired, a file path to which a CSV of individual taxon indices will be written for all taxa"
 ), byrow = T, ncol = 5)
@@ -162,6 +205,15 @@ taxonomy <- read.csv(opt$taxonomy)
 
 # Set defaults -----------------------------------------------------------
 
+
+
+
+if( ! is.null(opt$drop) ){
+  opt$drop <- strsplit(opt$drop, ",")[[1]]
+  missing <- opt$drop[ ! opt$drop %in% phy$tip.label]
+  if( length(missing) > 0 ) { stop("Error: one or more members of the drop list is not in the phylogeny:", paste0('"', missing, '"', collapse = ', ')) }
+}
+
 if( ! is.null(opt$exclude) ){
   opt$exclude <- strsplit(opt$exclude, ",")[[1]]
   missing <- opt$exclude[ ! opt$exclude %in% phy$tip.label]
@@ -179,7 +231,7 @@ if( length(taxonomy) < Ntip(phy) ) { stop("Error: taxonomy table is missing tip 
 
 # Do calculation and output -------------------------------------------------------------------
 
-indices <- calculate_taxonomic_indices(phy, taxonomy, exclude = opt$exclude, drop.missing = T)
+indices <- calculate_taxonomic_indices(phy, taxonomy, drop = opt$drop, exclude = opt$exclude, drop.missing = T)
 
 write("Tree\tN taxa\tN informative taxa\tMean taxonomic CI\tMean taxonomic RI", stderr())
 write(paste(c(opt$phylogeny, indices$summary), collapse = "\t"), stdout())
