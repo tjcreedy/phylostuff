@@ -174,8 +174,6 @@ find_monophyletic_subtrees <- function(tree, tips, start = Ntip(tree)+1){
     currtips <- listdescendants(tree = tree, n  = start, nodes = F, tip = T, inc.n = F)
   }
   
-  currtips
-  
   intips <- tree$tip.label[currtips] %in% tips
   
   if(all(intips)){
@@ -215,25 +213,31 @@ count_monophyletic_subtrees_by_group <- function(tree, group){
 consistency_index <- function(min, obs) min/obs
 retention_index <- function(min, max, obs) (max - obs)/(max - min)
 
-calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, drop.missing = F){
-  remove <- NULL
+calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, 
+                                        drop.missing = F, drop.tips = NULL){
+  # taxonomy = vector of taxon names corresponding to the tips
+  # exclude = do not include these taxa in the outputs, but retain them for calculating monophyly
+  # drop.missing = drop tips where taxonomy is NA from the tree prior to calculations
+  # drop.tips = drop a given list of tip names from the tree prior to calculations
+  todrop <- NULL
   if( drop.missing ){
-    remove <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
+    todrop <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
   }
+  if( !is.null(drop.tips) ){
+    todrop <- c(remove, drop.tips)
+  }
+  if( length(todrop) > 0 ){
+    taxonomy <- taxonomy[! tree$tip.label %in% todrop]
+    tree <- drop.tip(tree, todrop)
+  }
+  bt <- count_monophyletic_subtrees_by_group(tree, taxonomy)
+  bt$transitions <- ifelse(bt$nmono == 1, 1, ifelse(bt$nmono < bt$ninsert, bt$nmono, bt$ninsert + 1))
+  bt$TCI <- consistency_index(1, bt$transitions)
+  bt$TRI <- retention_index(1, bt$ntips, bt$transitions)
   if( !is.null(exclude) ){
-    remove <- c(remove, exclude)
+    bt <- bt[! bt$group %in% exclude, ]
   }
-  if( length(remove) > 0 ){
-    taxonomy <- taxonomy[! tree$tip.label %in% remove]
-    tree <- drop.tip(tree, remove)
-  }
-  bt <- count_monophyletic_subtrees_by_group(tree, taxonomy) %>%
-    mutate(
-      transitions = ifelse(nmono == 1, 1, ifelse(nmono < ninsert, nmono, ninsert + 1)),
-      TCI = consistency_index(1, transitions),
-      TRI = retention_index(1, ntips, transitions)
-    )
-  bti <- bt %>% filter(ntips > 1)
+  bti <- bt[bt$ntips > 1, ]
   sm <- c(n_taxa = nrow(bt), n_informative_taxa = nrow(bti), 
           CTCI = mean(bti$TCI), CTRI = mean(bti$TRI))
   return(list(summary = sm,
@@ -261,16 +265,106 @@ patristic_distance <- function(tree, n1, n2){
                                                           listancestors(tree, n2, inc.n = T))]))
 }
 
-
-find_largest_outgroup_parent <- function(tree, tips){
+find_largest_outgroup_parent <- function(tree, tips, ignore = NULL){
+  if( ! is.null(ignore) ){
+    fulltree <- tree 
+    tree <- drop.tip(tree, tree$tip.label[grepl(ignore, tree$tip.label)])
+  }
   subtreenodes <- find_monophyletic_subtrees(tree, tips)
-  subtreelength <- lapply(subtreenodes, function(n){
+  if( length(subtreenodes)  == length(tips)) {
+    stop("no monophyletic subtrees comprising >1 of the supplied tips found. Do you have extra tips that should be ignored?")
+  }
+  subtreelength <- sapply(subtreenodes, function(n){
     length(listdescendants(tree, n, nodes = F))
   })
-  return(subtreenodes[which.max(subtreelength)])
+  lop <- subtreenodes[which.max(subtreelength)]
+  if( ! is.null(ignore) ){
+    lop <- getMRCA(fulltree, tree$tip.label[listdescendants(tree, lop, nodes = F, tips = T)])
+  }
+  return(lop)
 }
 
-root_outgroup_fuzzy <- function(tree, outgroup){
-  return(ladderize(root(tree, node = find_largest_outgroup_parent(tree, outgroup), resolve.root = T)))
+root_outgroup_fuzzy <- function(tree, outgroup, ignore = NULL){
+  return(ladderize(root(tree, 
+                        node = find_largest_outgroup_parent(tree, outgroup, ignore), 
+                        resolve.root = T)))
 }
+
+unresolve <- function(phy, nodes){
+  unresolve_node <- function(phy, n){
+    # Get the branch length above the node and add it to the branches below, to preserve total 
+    # tip heights
+    heightabove <- phy$edge.length[phy$edge[,2] == n]
+    phy$edge.length[phy$edge[,1] == n] <- phy$edge.length[phy$edge[,1] == n] + heightabove
+    # Extract the clade from the node, leaving behind one or more branches named "NA"
+    graft <- extract.clade(phy, n)
+    phy <- drop.tip(phy, graft$tip.label, trim.internal = F)
+    # Find the new number of this node in the pruned tree, and that of its parent
+    newnode <- if( sum(phy$tip.label == "NA") == 1 ){
+      which(phy$tip.label == "NA")
+    } else {
+      getMRCA(phy, phy$tip.label[phy$tip.label == "NA"])
+    }
+    parent <- phy$edge[,1][phy$edge[,2] == newnode]
+    # Bind the extracted clade to the parent, and remove all the "NA" branches
+    phy <- bind.tree(phy, graft, parent)
+    phy <- drop.tip(phy, "NA")
+    
+    return(phy)
+  }
+  
+  unresolve_nodes <- function(phy, nodes){
+    # Because unresolving nodes will keep changing the node numbers on the tree, define nodes 
+    # instead by their children
+    unresolve <- lapply(nodes, function(n){
+      phy$tip.label[listdescendants(phy, n, nodes = F, tips = T, inc.n = F)]})
+    
+    for(tips in unresolve){
+      phy <- unresolve_node(phy, getMRCA(phy, tips))
+    }
+    
+    return(phy)
+  }
+  
+  if( length(nodes) > 1 ){
+    return(unresolve_nodes(phy, nodes))
+  } else {
+    return(unresolve_node(phy, nodes[1]))
+  }
+}
+
+
+unresolve_by_support <- function(phy, threshold = 1, 
+                                 support = NULL, supporti = NULL, splitchar = "/", na.keep = T){
+  
+  # If reading support values from node labels, separate the values out if multiple supports, and in
+  # either case check that they are coercable into numerics
+  if ( is.null(support) ){
+    if ( ! is.null(supporti) ){
+      support <- sapply(strsplit(phy$node.label, splitchar), '[', supporti)
+      supportcheck <- as.numeric(support)
+    } else {
+      supportcheck <- as.numeric(phy$node.label)
+    }
+    if ( sum(is.na(suppressWarnings(supportcheck))) == length(phy$node.label) ) {
+      stop("Cannot coerce node labels to support values, are there multiple values? If so, supply an index to supporti")
+    }
+    support <- supportcheck 
+  }
+  
+  if( max(support, na.rm = T) > 1  & threshold <= 1 ){
+    warning("It looks like the support values are 0-100, but you've supplied a threshold <=1")
+  } else if ( max(support, na.rm = T) <= 1 & threshold > 1 ){
+    stop("It looks like the support values are 0-1, but you've supplied a threshold > 1 and so all nodes would be unresolved")
+  } else if ( max(support, na.rm = T) < threshold ){
+    stop("The threshold supplied is greater than the maximum support, all nodes would be unresolved")
+  }
+  
+  # Get the list of nodes to unresolve (always excluding the root node, of course)
+  unnodes <- support[-1] < threshold | (is.na(support[-1]) & !na.keep)
+  unnodes <- (Ntip(phy)+2:phy$Nnode)[unnodes]
+  
+  return(unresolve(phy, unnodes))
+} 
+
 
