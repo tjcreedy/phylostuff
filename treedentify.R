@@ -124,6 +124,9 @@ spec <- matrix(c(
 
 opt <- getopt(spec)
 
+opt$phylo <- "~/Downloads/195-4-map-taxa.tre"
+opt$tip <- "^meta"
+
 if ( is.null(opt) | !is.null(opt$help) ){
   message(getopt(spec, usage = T))
   q(status = 1)
@@ -156,6 +159,21 @@ rm(tips)
 
 message(paste("Read tree with", length(phy$tip.label), "tips, found", length(noveltips), "to classify"))
 
+
+# Check the node labels -----------------------------------------------------------------------
+
+nodelabels <- c("Coleoptera", "Buprestidae")
+
+nodelabels <- unlist(strsplit(phy$node.label, "/"))
+nodelabels <- suppressWarnings(na.omit(as.numeric(nodelabels)))
+
+if( length(nodelabels) > 1 ){
+  if( all(0 <= nodelabels) & ( all(nodelabels <= 1) | all(nodelabels <= 100) )){
+    stop("the node labels in ", opt$phylo, " appear to be support values, not taxonomic levels. Have you run phylabel.R with the --taxonomise/-t option?")
+  } else {
+    message("Warning: there appear to be numeric nodelables of ", opt$phylo, ". These might cause issues with taxonomisation")
+  }
+}
 
 # Find inferred taxonomies ------------------------------------------------
 
