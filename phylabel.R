@@ -624,7 +624,6 @@ if ( ! is.null(opt$excludetip) ){
 
 message(paste("Read tree with", length(phy$tip.label), "tips"))
 
-
 # Get any gene presence and/or metadata -----------------------------------
 
 renamelist <- list()
