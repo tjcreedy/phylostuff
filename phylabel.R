@@ -18,7 +18,28 @@ taxlevels <- readLines("https://raw.githubusercontent.com/tjcreedy/constants/mai
 
 # Load functions ----------------------------------------------------------
 
-read.tabular <- function(path){
+
+read_tree <- function(path){
+  tryCatch(
+    expr = {
+      message("Trying to read tree ", path, " as newick format")
+      return(read.tree(path))
+    },
+    error = function(e){
+      tryCatch(
+        expr = {
+          message("Tree is not newick format, trying nexus")
+          return(read.nexus(path))
+        },
+        error = function(e){
+          stop("Error: tree format is not recognised as newick or nexus")
+        }
+      )
+    }
+  )
+}
+
+read_tabular <- function(path){
   if( grepl("\\.csv$", tolower(path)) ){
     return(read.csv(path, row.names = 1))
   } else {
@@ -181,7 +202,7 @@ parse_presence <- function(path, genes = c('ND1', 'CYTB', 'ND6', 'ND4L', 'ND4', 
 }
 
 parse_metadata <- function(path, names){
-  metadata <- read.tabular(path)
+  metadata <- read_tabular(path)
   metadata <- metadata[, names[names %in% colnames(metadata)], drop = F]
   metadata <- setNames(apply(metadata, 1, function(x) paste(x, collapse = '-')), rownames(metadata))
   return(metadata)
@@ -189,7 +210,7 @@ parse_metadata <- function(path, names){
 
 get_taxids_from_file <- function(path, tips){
   # Load data
-  taxiddata <- read.tabular(path)
+  taxiddata <- read_tabular(path)
   
   # Find taxids
   if( ncol(taxiddata) == 1 ){
@@ -220,7 +241,7 @@ get_taxids_from_file <- function(path, tips){
 
 get_taxonomy_from_file <- function(path, tips){
   # Load data
-  taxondata <- read.tabular(path)
+  taxondata <- read_tabular(path)
   colnames(taxondata) <- tolower(colnames(taxondata))
   
   # Filter to matching tips
@@ -516,8 +537,8 @@ get_taxonomy_from_taxids <- function(taxids, taxcache, auth, indent = ""){
 
 spec <- matrix(c(
   'help'        , 'h', 0, "logical"  , "show this helpful message",
-  'phylo'       , 'p', 1, "character", "the phylogeny to label",
-  'output'      , 'o', 1, "character", "path to write labelled phylogeny", 
+  'phylo'       , 'p', 1, "character", "path to the newick or nexus phylogeny to label",
+  'output'      , 'o', 1, "character", "path to write labelled phylogeny in newick format", 
   'taxonomise'  , 'x', 0, "logical"  , "assign taxonomic levels to nodes on the tree",
   'excludetip'  , 'e', 2, "character", "regular expression denoting tips that should not be used for taxonomisation ( e.g. \'^otu\')",
   'rename'      , 'r', 0, "logical"  , "rename tips using taxonomy, presence and/or metadata information given",
@@ -613,9 +634,7 @@ if ( opt$taxonomise & (!opt$usencbi & is.null(opt$taxonomy))){
 
 # Load in tree and get tips ----------------------------------------------
 
-message(paste("Reading tree", opt$phylo))
-
-phy <- read.tree(opt$phylo)
+phy <- read_tree(opt$phylo)
 phy$tip.label <- gsub("['\"]", "", phy$tip.label)
 unknowntips <- phy$tip.label
 if ( ! is.null(opt$excludetip) ){
