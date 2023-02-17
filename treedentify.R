@@ -124,9 +124,6 @@ spec <- matrix(c(
 
 opt <- getopt(spec)
 
-opt$phylo <- "~/Downloads/195-4-map-taxa.tre"
-opt$tip <- "^meta"
-
 if ( is.null(opt) | !is.null(opt$help) ){
   message(getopt(spec, usage = T))
   q(status = 1)
