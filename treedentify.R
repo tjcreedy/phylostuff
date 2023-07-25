@@ -159,8 +159,6 @@ message(paste("Read tree with", length(phy$tip.label), "tips, found", length(nov
 
 # Check the node labels -----------------------------------------------------------------------
 
-nodelabels <- c("Coleoptera", "Buprestidae")
-
 nodelabels <- unlist(strsplit(phy$node.label, "/"))
 nodelabels <- suppressWarnings(na.omit(as.numeric(nodelabels)))
 
