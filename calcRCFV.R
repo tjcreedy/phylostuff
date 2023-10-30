@@ -102,7 +102,6 @@ rcfv <- function(m, charset){
 }
 
 rcfv.partitioned <- function(m, charset, partitions){
-  m = seqmatrix
   out <- lapply(partitions, function(p) rcfv(m[,p], charset))
   dropped <- lapply(out, '[[', 4)
   for( pn in names(dropped) ){
