@@ -213,25 +213,26 @@ count_monophyletic_subtrees_by_group <- function(tree, group){
 consistency_index <- function(min, obs) min/obs
 retention_index <- function(min, max, obs) (max - obs)/(max - min)
 
-calculate_taxonomic_indices <- function(tree, taxonomy, exclude = NULL, 
+calculate_taxonomic_indices <- function(tree, taxa, exclude = NULL, 
                                         drop.missing = F, drop.tips = NULL){
-  # taxonomy = vector of taxon names corresponding to the tips
+  # taxa = vector of taxon names corresponding to the tips
   # exclude = do not include these taxa in the outputs, but retain them for calculating monophyly
   # drop.missing = drop tips where taxonomy is NA from the tree prior to calculations
   # drop.tips = drop a given list of tip names from the tree prior to calculations
   todrop <- NULL
   if( drop.missing ){
-    todrop <- tree$tip.label[ taxonomy == "" | is.na(taxonomy) ]
+    todrop <- tree$tip.label[ taxa == "" | is.na(taxa) ]
   }
   if( !is.null(drop.tips) ){
     todrop <- c(remove, drop.tips)
   }
   if( length(todrop) > 0 ){
-    taxonomy <- taxonomy[! tree$tip.label %in% todrop]
+    taxa <- taxa[! tree$tip.label %in% todrop]
     tree <- drop.tip(tree, todrop)
   }
-  bt <- count_monophyletic_subtrees_by_group(tree, taxonomy)
-  bt$transitions <- ifelse(bt$nmono == 1, 1, ifelse(bt$nmono < bt$ninsert, bt$nmono, bt$ninsert + 1))
+  write.tree(tree, "test.phy")
+  bt <- count_monophyletic_subtrees_by_group(tree, taxa)
+  bt$transitions <- ifelse(bt$nmono == 1, 1, ifelse(bt$nmono <= bt$ninsert, bt$nmono, bt$ninsert + 1))
   bt$TCI <- consistency_index(1, bt$transitions)
   bt$TRI <- retention_index(1, bt$ntips, bt$transitions)
   if( !is.null(exclude) ){
