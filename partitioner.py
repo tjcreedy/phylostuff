@@ -347,10 +347,10 @@ if __name__ == "__main__":
 
     # Get options
     args = getcliargs()
-    args = getcliargs('-p /home/thomc/work/iBioGen_postdoc/MMGdatabase/phylogeny/reftree498_project/6_modelfinder/6_aa_MPF_genpartQ.best_scheme.nex'.split(' '))
+
     # Read input partitions
     partitions = read_partitions(sys.stdin)
-    partitions = read_partitions(open('/home/thomc/work/iBioGen_postdoc/MMGdatabase/phylogeny/bigtree6k_project/5_aa_partitions'))
+
     # Check for overlaps
     check_overlap(partitions)
 
