@@ -417,6 +417,11 @@ read.partition <- function(path){
 }
 
 rcfv <- function(m, charset){
+  tidy.chisq.test <- function(...){
+    ct <- chisq.test(...)
+    c(ct$statistic, ct$parameter, p.value = ct$p.value)
+  }
+  
   # Calculate the frequency of each character in each sequence
   cfreq <- do.call(
     cbind, 
@@ -448,6 +453,7 @@ rcfv <- function(m, charset){
               tsRCFV = colSums(finfreq)[rownames(m)],
               #ncsRCFV = colSums(finfreq)[rownames(m)]/
               #  (ncol(m)^(-.5) * ncol(finfreq)^(-1) * length(charset) * 100)
+              tsRCFV.chisq = apply(cfreq, 2, tidy.chisq.test, p = rowSums(cfreq)/sum(cfreq)) %>% t(),
               RCFV = sum(finfreq),
               #nRCFV = sum(finfreq)/
               #  (ncol(m)^(-.5) * ncol(finfreq)^(0.01) * length(charset) * 100),
@@ -465,6 +471,7 @@ rcfv.partitioned <- function(m, charset, partitions){
   
   return(list(csRCFV = do.call(rbind, lapply(out, "[[", 1)),
               tsRCFV = do.call(rbind, lapply(out, '[[', 2)),
-              RCFV = unlist(lapply(out, '[[', 3))))
+              tsRCFV.chisq = lapply(out, '[[', 3),
+              RCFV = unlist(lapply(out, '[[', 4))))
   
 }
