@@ -230,7 +230,6 @@ calculate_taxonomic_indices <- function(tree, taxa, exclude = NULL,
     taxa <- taxa[! tree$tip.label %in% todrop]
     tree <- drop.tip(tree, todrop)
   }
-  write.tree(tree, "test.phy")
   bt <- count_monophyletic_subtrees_by_group(tree, taxa)
   bt$transitions <- ifelse(bt$nmono == 1, 1, ifelse(bt$nmono <= bt$ninsert, bt$nmono, bt$ninsert + 1))
   bt$TCI <- consistency_index(1, bt$transitions)
